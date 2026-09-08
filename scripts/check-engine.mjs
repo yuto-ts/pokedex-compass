@@ -1,0 +1,115 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import vm from 'node:vm';
+import ts from 'typescript';
+import assert from 'node:assert/strict';
+const require = createRequire(import.meta.url);
+const source = readFileSync(new URL('../lib/dex.ts', import.meta.url), 'utf8');
+const js = ts.transpileModule(source, {
+  compilerOptions: {
+    module: ts.ModuleKind.CommonJS,
+    target: ts.ScriptTarget.ES2022,
+    esModuleInterop: true,
+  },
+}).outputText;
+const engineModule = { exports: {} };
+const ctx = {
+  module: engineModule,
+  exports: engineModule.exports,
+  require: (p) =>
+    p.startsWith('@/') ? require('../' + p.slice(2)) : require(p),
+  localStorage: { getItem: () => null, setItem: () => {} },
+};
+vm.runInNewContext(js, ctx);
+const { pokemon, recommend, initial, available, optimize, storage } =
+  engineModule.exports;
+assert.equal(pokemon.length, 1025);
+assert.equal(new Set(pokemon.map((p) => p.id)).size, 1025);
+assert.equal(pokemon[0].name, 'フシギダネ');
+assert.equal(pokemon[1024].id, 1025);
+const groudon = pokemon.find((p) => p.id === 383);
+let state = { ...initial, owned: ['Scarlet'], dlc: [], progress: {} };
+assert.equal(
+  recommend(groudon, state),
+  undefined,
+  'DLC route must be excluded without DLC',
+);
+state = { ...state, dlc: ['Scarlet：ゼロの秘宝'] };
+assert.equal(recommend(groudon, state).game, 'Scarlet');
+assert.equal(recommend(groudon, state).trade, false);
+state = { ...state, owned: ['Violet'], dlc: ['Scarlet：ゼロの秘宝'] };
+assert.equal(
+  recommend(groudon, state),
+  undefined,
+  'Other version DLC is not sufficient',
+);
+assert.equal(
+  available(
+    { game: 'Sword', method: 'event' },
+    { ...initial, owned: ['Sword'] },
+  ),
+  false,
+);
+assert.equal(
+  recommend(
+    pokemon.find((p) => p.id === 893),
+    { ...initial, owned: ['Sword'] },
+  ),
+  undefined,
+  'Past event cannot be a current recommendation',
+);
+const s = { ...initial, owned: ['X'], progress: { 1: { caught: true } } };
+const plan = optimize(s);
+assert(
+  !Object.values(plan.groups)
+    .flat()
+    .some((e) => e.p.id === 1),
+);
+assert(!plan.unresolved.some((p) => p.id === 1));
+assert.equal(
+  Object.values(plan.groups).flat().length + plan.unresolved.length,
+  1024,
+);
+assert.equal(storage.load().version, 1);
+ctx.localStorage.getItem = () => '{broken';
+assert.throws(() => storage.load());
+console.log(
+  'PASS: 1,025 unique species; DLC/version constraints; past events; captured exclusion; unresolved accounting; storage errors.',
+);
+const dummy = { id: 2000 };
+engineModule.exports.routes[2000] = [
+  {
+    game: 'X',
+    method: 'gift',
+    difficulty: 1,
+    fixed: false,
+    trade: false,
+    source: 'test',
+  },
+  {
+    game: 'X',
+    method: 'fixed',
+    difficulty: 3,
+    fixed: true,
+    trade: false,
+    source: 'test',
+  },
+];
+assert.equal(
+  recommend(dummy, { ...initial, owned: ['X'], fixed: true }).method,
+  'fixed',
+);
+assert.equal(
+  recommend(dummy, { ...initial, owned: ['X'], fixed: false }).method,
+  'gift',
+);
+assert.equal(
+  available({ game: 'X', method: 'gift', needsReview: true }, initial),
+  false,
+);
+ctx.localStorage.getItem = () =>
+  JSON.stringify({ ...initial, progress: { 1: { caught: 'yes' } } });
+assert.throws(() => storage.load());
+console.log(
+  'PASS: fixed mode vs difficulty mode; unreviewed candidates excluded; invalid flags protected.',
+);

@@ -1,0 +1,1035 @@
+{
+  "checked": "2026-09-08",
+  "pages": 1930,
+  "speciesWithRoutes": 992,
+  "errors": [
+    {
+      "url": "https://www.serebii.net/pokedex-sv/caterpie/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/metapod/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/butterfree/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/rattata/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/raticate/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/spearow/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/fearow/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/nidoranf/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/nidorina/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/nidoqueen/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/nidoranm/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/nidorino/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/nidoking/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/paras/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/parasect/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/ponyta/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/rapidash/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/farfetchd/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/krabby/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/kingler/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/lickitung/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tangela/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/goldeen/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/seaking/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/jynx/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/omanyte/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/omastar/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/kabuto/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/kabutops/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/ledyba/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/ledian/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/togepi/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/togetic/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/natu/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/xatu/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/unown/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/wobbuffet/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/shuckle/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/corsola/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/remoraid/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/octillery/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/mantine/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/smoochum/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/miltank/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/celebi/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/zigzagoon/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/linoone/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/wurmple/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/silcoon/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/beautifly/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/cascoon/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/dustox/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/taillow/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/swellow/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/nincada/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/ninjask/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/shedinja/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/whismur/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/loudred/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/exploud/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/skitty/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/delcatty/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/wailmer/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/wailord/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/spinda/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/lunatone/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/solrock/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/baltoy/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/claydol/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/lileep/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/cradily/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/anorith/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/armaldo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/castform/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/wynaut/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/spheal/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/sealeo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/walrein/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/clamperl/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/huntail/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/gorebyss/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/relicanth/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/bidoof/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/bibarel/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/burmy/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/wormadam/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/mothim/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/cherubi/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/cherrim/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/glameow/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/purugly/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/chatot/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/skorupi/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/drapion/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/carnivine/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/mantyke/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/lickilicky/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tangrowth/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/togekiss/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/victini/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/lillipup/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/herdier/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/stoutland/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/pidove/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tranquill/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/unfezant/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/roggenrola/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/boldore/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/gigalith/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/woobat/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/swoobat/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tympole/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/palpitoad/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/seismitoad/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/darumaka/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/darmanitan/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/maractus/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/dwebble/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/crustle/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/sigilyph/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tirtouga/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/carracosta/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/archen/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/archeops/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/karrablast/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/escavalier/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/frillish/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/jellicent/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/ferroseed/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/ferrothorn/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/klink/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/klang/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/klinklang/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/elgyem/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/beheeyem/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/shelmet/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/accelgor/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/druddigon/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/bouffalant/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/heatmor/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/durant/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/wishiwashi/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/morelull/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/shiinotic/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/stufful/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/bewear/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/pyukumuku/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/type:null/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/silvally/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/turtonator/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/togedemaru/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/dhelmise/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/jangmoo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/hakamoo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/kommoo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tapukoko/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tapulele/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tapubulu/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tapufini/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/nihilego/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/buzzwole/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/pheromosa/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/xurkitree/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/celesteela/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/kartana/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/guzzlord/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/poipole/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/naganadel/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/stakataka/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/blacephalon/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/blipbug/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/dottler/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/orbeetle/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/gossifleur/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/eldegoss/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/wooloo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/dubwool/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/yamper/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/boltund/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/sizzlipede/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/centiskorch/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/obstagoon/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/cursola/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/sirfetchd/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/dracozolt/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/arctozolt/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/dracovish/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/arctovish/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/wochien/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/chienpao/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/tinglu/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-sv/chiyu/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/farfetchd/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/snivy/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/servine/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/serperior/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/tepig/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/pignite/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/emboar/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/patrat/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/watchog/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/pansage/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/simisage/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/pansear/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/simisear/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/panpour/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/simipour/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/blitzle/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/zebstrika/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/sewaddle/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/swadloon/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/leavanny/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/ducklett/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/swanna/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/deerling/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/sawsbuck/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/alomomola/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/tynamo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/eelektrik/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/eelektross/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/meloetta/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/chespin/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/quilladin/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/chesnaught/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/fennekin/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/braixen/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/delphox/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/froakie/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/frogadier/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/greninja/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/scatterbug/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/spewpa/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/vivillon/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/litleo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/pyroar/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/flabebe/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/floette/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/florges/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/skiddo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/gogoat/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/furfrou/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/hoopa/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/pikipek/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/trumbeak/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/toucannon/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/yungoos/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/gumshoos/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/crabrawler/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/crabominable/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/oricorio/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/minior/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/komala/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/bruxish/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/jangmoo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/hakamoo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/kommoo/",
+      "error": "HTTP Error 404: Not Found"
+    },
+    {
+      "url": "https://www.serebii.net/pokedex-swsh/sirfetchd/",
+      "error": "HTTP Error 404: Not Found"
+    }
+  ]
+}
