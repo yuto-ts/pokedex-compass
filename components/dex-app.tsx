@@ -437,7 +437,16 @@ export default function DexApp({
                         ? 'active'
                         : ''
                     }
-                    render={<Link href={url} />}
+                    render={
+                      <a
+                        href={url}
+                        aria-current={
+                          (url === '/' && view === 'dex') || url === '/' + view
+                            ? 'page'
+                            : undefined
+                        }
+                      />
+                    }
                   >
                     <Icon size={18} />
                     <span>{label}</span>
