@@ -440,6 +440,7 @@ export default function DexApp({
                     render={
                       <a
                         href={url}
+                        aria-label={label}
                         aria-current={
                           (url === '/' && view === 'dex') || url === '/' + view
                             ? 'page'
