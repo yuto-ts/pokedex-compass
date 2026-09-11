@@ -5,6 +5,7 @@
 状態: 設計案（未実装）
 改訂: 2026-09-12 PR #1 の設計レビュー（4 件）を反映。§5.2・§5.5・§6.4・§7.3・§8・§9 を書き直し、§13 に V9〜V11 を追加
 改訂 2: 2026-09-12 再レビュー（2 件）を反映。§5.5 のリンク先パス、§5.2・§7.3 の 404 時の扱いを修正
+改訂 3: 2026-09-12 §13 のうち事前確認できる 8 件（V1〜V5・V7・V9・V10）を実機で検証し結果を反映。`--bare` を撤回、`--add-dir` と `--ignore-user-config` を追加
 
 ## 1. 要件
 
@@ -72,16 +73,16 @@
 
 | 候補 | 起動方法 | 認証 | 初回応答までの目安 | 逐次出力 | skill による遅延読込 | 備考 |
 |------|----------|------|--------------------|----------|----------------------|------|
-| Claude（`claude -p`） | `claude -p --output-format stream-json --include-partial-messages` | Claude サブスクリプション | ツール無効なら数秒（未計測） | トークン単位（確認済みのフラグ） | `.claude/skills` を cwd に置く | R2〜R6 をすべて満たす |
-| ChatGPT（`codex exec`） | `codex exec --json -C <workspace>` | ChatGPT サブスクリプション | 未計測 | `--json` の JSONL。トークン単位の delta が出るかは未検証 | Codex の skills 機能（配置先は未検証） | ChatGPT を CLI から使う手段は現状これ |
+| Claude（`claude -p`） | `claude -p --output-format stream-json --include-partial-messages` | Claude サブスクリプション | 中央値 5.3 秒（haiku、ツール無効、10 回。V7） | トークン単位（実測済み） | `.claude/skills` を cwd に置く（実測済み。V2） | R2〜R6 をすべて満たす |
+| ChatGPT（`codex exec`） | `codex exec --json -C <workspace>` | ChatGPT サブスクリプション | 未計測 | `--json` にトークン単位の delta は無い。`agent_message` 完了単位（V3） | cwd の `.agents/skills` または `.codex/skills`（実測済み。V4） | ChatGPT を CLI から使う手段は現状これ |
 | ローカル LLM（Ollama） | `ollama` の HTTP（`/api/chat`） | 不要 | モデル次第 | あり | 仕組みがないためブリッジ側で疑似的に実装が必要 | ポケモン知識の精度が低い可能性。任意 |
 
 ### 4.2 「chat 向き」にするための方針
 
 遅さの主因はエージェント的なツール呼び出しの往復なので、次のように起動を絞ります。
 
-- Claude: `--tools "Read,Skill"` に限定する（ターン数上限のフラグは 2.1.268 の `--help` に無いため、打ち切りはブリッジ側のタイムアウトで行う）。ツールを使うのは skill（収集状況）を読むときだけになる。MCP は `--strict-mcp-config` で切る。設定は `--setting-sources project` で workspace のものだけ読む（ユーザー全体の `~/.claude/CLAUDE.md` や hooks を持ち込まない）。`--no-session-persistence` は付けず、`session_id` を控えて後続ターンの `--resume` に使えるようにする。
-- Codex: `--sandbox read-only --skip-git-repo-check -C chat/workspace` で起動し、シェル実行を読み取り専用にする。`--ephemeral` はスレッド継続（`codex exec resume`）ができなくなるため付けない。
+- Claude: `--tools "Read,Skill"` に限定する（ターン数上限のフラグは 2.1.268 の `--help` に無いため、打ち切りはブリッジ側のタイムアウトで行う）。ツールを使うのは skill（収集状況）を読むときだけになる。MCP は `--strict-mcp-config` で切る。設定は `--setting-sources project` で workspace のものだけ読む（ユーザー全体の `~/.claude/CLAUDE.md` や hooks を持ち込まない）。`--bare` は使わない（キーチェーンを読まないためサブスクリプション認証が通らず、skill も列挙されない。V2）。`--no-session-persistence` は付けず、`session_id` を控えて後続ターンの `--resume` に使えるようにする。
+- Codex: `--sandbox read-only --skip-git-repo-check --ignore-user-config -C <job cwd>` で起動する。`--ignore-user-config` は `~/.codex/config.toml` の MCP サーバー（この Mac では `cua_repl`）を外すためで、認証は残る（V5・V10）。`--ephemeral` はスレッド継続（`codex exec resume`）ができなくなるため付けない。
 - 既定モデルは軽いもの（Claude は `claude-haiku-4-5-20251001`、Codex は設定ファイルで指定）にし、必要なときだけ大きいモデルを選ぶ。
 - 同時実行はブリッジ全体で 1 ジョブに制限する。多重起動でサブスクリプションの上限を使い切るのを防ぐ。
 
@@ -180,10 +181,12 @@ claude -p \
   --model claude-haiku-4-5-20251001 \
   --tools "Read,Skill" \
   --setting-sources project --strict-mcp-config \
+  --add-dir chat/workspace/contexts/<contextId> \
   --permission-mode default
 ```
 
 - cwd はジョブごとの `chat/workspace/jobs/<jobId>`（§5.5）。プロンプトは stdin から渡します（argv 長の上限を避けるため）。
+- `--add-dir` は必須です。cwd 内のシンボリックリンク `data/` の先は cwd 外と判定され、`--add-dir` なしでは Read が「許可されていない」で拒否されました（V2・V9）。
 - `stream_event` の `content_block_delta` で `delta.type === 'text_delta'` のものを `delta` として流します。`content_block_start` で `tool_use` が来たら `status` を出します。最後の `result` イベントから `session_id` と `usage` を取ります。
 - 2 ターン目以降は `--resume <session_id>` を優先し、失敗したら（セッションが消えている等）§9 の転写方式に切り替えます。
 
@@ -192,12 +195,15 @@ Codex アダプタの起動コマンド例です。
 ```bash
 codex exec --json -m gpt-5.5 \
   -C chat/workspace/jobs/<jobId> --sandbox read-only --skip-git-repo-check \
+  --ignore-user-config \
   -
 ```
 
 - システムプロンプトはジョブ cwd の `AGENTS.md`（`prompts/system.md` へのリンク）として読ませます。Codex は cwd の `AGENTS.md` を自動で読みます。
 - `--sandbox read-only` はモデルが生成したシェルコマンドを「書き込み不可・ネットワーク不可」で実行する方針であり、シェル実行そのものを止めるものではありません（レビュー指摘 4）。Codex については「読み取り用コマンドの実行は許容する」設計にします。詳細は §5.6。
-- JSONL の `item.*` イベントのうち `item.type === 'agent_message'` の本文を流します。トークン単位の delta イベントが出るかは未検証です（§13）。出ない場合はメッセージ完了単位の表示になります。
+- JSONL の `item.*` イベントのうち `item.type === 'agent_message'` の本文を流します。トークン単位の delta イベントはありません（V3 で確認。出るのは `thread.started` / `turn.started` / `item.started` / `item.completed` / `turn.completed`）。Codex はメッセージ完了単位の表示になり、R6 の「途中でも表示」は Codex では段落単位までです。skill を読む前に「読み直して確認します」という短い `agent_message` が先に来るので、それを表示すれば待ち時間の体感は減ります。
+- stderr に `failed to load models cache: missing field supports_parallel_tool_calls` が毎回出ますが、応答には影響しませんでした（`~/.codex/models_cache.json` と 0.147.0 の不整合）。stderr はログに流さず捨てます。
+- 1 ターンの入力トークンは 14,000〜39,000 でした（Codex 自身のシステムプロンプト分）。サブスクリプションの上限に響くので、既定モデルは軽いものにします。
 - 2 ターン目以降は `codex exec resume <thread_id> -` を使います。
 
 ### 5.4 収集状況スナップショット（`PUT /contexts`）
@@ -218,14 +224,15 @@ chat/workspace/jobs/<jobId>/
   CLAUDE.md   → <repo>/chat/prompts/system.md
   AGENTS.md   → <repo>/chat/prompts/system.md
   .claude/skills/dex-compass-collection → <repo>/chat/skills/dex-compass-collection
+  .agents/skills/dex-compass-collection → <repo>/chat/skills/dex-compass-collection
   data        → <repo>/chat/workspace/contexts/<contextId>
 ```
 
 - リンク先はブリッジが `path.resolve(repoRoot, …)` で絶対パスとして計算します。相対パスで書くと階層を数え違えやすいためです（再レビュー指摘 1。相対で書くなら skill のリンクは `../../../../../skills/dex-compass-collection` で、5 階層上がります）。
-- 作成後に `fs.realpath` で 4 つのリンク先が存在することを確認し、無ければジョブを `error` で終了します。テストでもこの解決結果を検証します（§14）。
+- 作成後に `fs.realpath` で 5 つのリンク先が存在することを確認し、無ければジョブを `error` で終了します。テストでもこの解決結果を検証します（§14）。
 - 中身はシンボリックリンクだけなので作成は数 ms です。ジョブの保持期間（10 分）が過ぎたら削除します。
 - skill 本文は常に `data/collection.md` を読めばよく、どの版を読むかはブリッジが決めます。AI には版の選択をさせません。
-- Codex 用の skill 探索パスが `.claude/skills` と異なる場合は、同じディレクトリにリンクを追加します（V4）。
+- Codex は cwd の `.agents/skills` と `.codex/skills` のどちらからも skill を発見しました（V4）。ベンダー横断の `.agents/skills/dex-compass-collection` にもリンクを置きます（`.claude/skills` は Codex には見えません）。
 
 ### 5.6 セキュリティ
 
@@ -234,8 +241,8 @@ chat/workspace/jobs/<jobId>/
 - **Origin の許可リスト**: `chat/config.json` の `allowedOrigins` に一致しない `Origin` は 403。既定はサイトのドメイン、`http://localhost:3000`、`http://127.0.0.1:3000`。単一 HTML 版（`file://`）は `Origin: null` になるため、`"null"` を許可するかどうかは設定で選べるようにし、既定では許可しません。
 - **接続トークン**: 初回起動時に生成して `workspace/.token` に保存し、起動ログに表示します。ブラウザはドックの設定欄で 1 回入力し、localStorage に保存して `Authorization: Bearer` で送ります。`/health` 以外は必須です。
 - **Private Network Access / Local Network Access 対応**: プリフライトに `Access-Control-Allow-Private-Network: true` を返します。Chrome の新しいバージョンでは初回に許可ダイアログが出る想定です（未検証）。
-- **Claude の権限**: `--tools "Read,Skill"` に限定し、書き込み・シェル実行のツールを与えません。cwd 外の Read は非対話モードでは許可待ちにならず拒否される想定です（V9 で確認）。
-- **Codex の権限**: `--sandbox read-only` で、モデルが生成したシェルコマンドを書き込み不可・ネットワーク不可の Seatbelt 内で実行します。シェル実行自体は起こり得るため、保証するのは「ディスクへの書き込みと外部通信をしない」ことに限ります。読み取りは cwd 外にも及ぶ可能性があるので、Codex を使う場合はその旨をドックの AI 選択欄に注記します。シェルツール自体を外す設定があるかは V10 で確認し、あれば採用します。
+- **Claude の権限**: `--tools "Read,Skill"` に限定し、書き込み・シェル実行のツールを与えません。cwd 外の Read は非対話モードでは拒否されます（`~/.zshrc` の Read が「許可されていない」で失敗。V9）。`--add-dir` で許可するのはそのジョブのスナップショットディレクトリ 1 つだけです。
+- **Codex の権限**: `--sandbox read-only` で、モデルが生成したシェルコマンドを書き込み不可・ネットワーク不可で実行します。`touch /tmp/…` は `Operation not permitted`、`curl https://example.com` は名前解決失敗（exit 6）になることを確認しました（V10）。シェル実行自体は起こり、読み取りは cwd 外にも及ぶので、その旨をドックの AI 選択欄に注記します。シェルツールを外す設定（`-c features.shell_tool=false -c features.unified_exec=false`）は存在しますが、外すとモデルはユーザー設定の MCP（`cua_repl` の JavaScript 実行）に回り、サンドボックス外で Node の `fs` を使いました。そのためシェルは残し、代わりに `--ignore-user-config` で MCP を外します（V10）。残るツールは `web.run`（OpenAI 側の検索）と `apply_patch`（read-only で書けない）です。
 - **ジョブ制限**: 同時 1 ジョブ、プロンプト上限 8,000 文字、タイムアウト 180 秒。超過時はプロセスを kill して `done` に `error` を載せます。
 - **ログ**: プロンプト本文はログに残しません（stderr にはジョブ id と所要時間のみ）。
 
@@ -276,7 +283,7 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
 
 - `data/collection.md` と `data/state.json` はブラウザが `PUT /contexts` で送った内容からブリッジがスナップショットとして保存します（§5.4）。表の生成は `lib/dex.ts` の `pokemon` 一覧を持つブラウザ側で行い（`lib/chat/context.ts`）、ブリッジは受け取った文字列を書くだけにします。ブリッジで TypeScript のデータ加工を再実装しないためです。
 - ジョブの cwd からは `data/` がそのジョブのスナップショットを指します（§5.5）。skill 本文はパスを固定して書けます。
-- Codex 用の skill 配置先は Codex 側の探索場所に合わせてジョブ cwd にリンクを置きます（`~/.codex/skills` が存在することは確認済み。cwd 配下の探索パスは未検証、V4）。
+- Codex 用にはジョブ cwd の `.agents/skills/` に同じ skill をリンクします（§5.5、V4）。
 
 ### 6.3 同期のタイミング（レビュー指摘 1）
 
@@ -442,14 +449,14 @@ skill で読んだ `collection.md` の内容は、継続中の CLI セッショ�
 2. **変更時は再読込を明示する**: ブリッジは `thread.lastContextId` と今回の `contextId` を比べ、異なれば「収集状況は前回の質問から更新されています。収集状況に関する質問なら必ず読み直してください」の行を付けます。ジョブ cwd の `data/` は新しいスナップショットを指しているので、読み直せば新しい内容になります。
 3. **システムプロンプトでも毎回読み直しを指示する**: 収集状況の質問では以前読んだ内容を使い回さない、と書きます（§6.1）。2 は指示の強調であり、1 と 3 だけでも成り立つ設計にします。
 
-それでも古い内容で答える余地は残ります（指示に従わない場合）。これを許容しない運用にしたい場合は、`contextId` が変わったターンでは `--resume` を使わず転写方式で新しいセッションを始める設定（`config.json` の `freshSessionOnContextChange: true`）を用意します。既定は `false` にし、V11 で古い回答の頻度を計ってから既定を決めます。
+skill 参照 1 回あたりの追加時間は約 6 秒でした（haiku、4 ターン、中央値 11.1 秒。V7）。それでも古い内容で答える余地は残ります（指示に従わない場合）。これを許容しない運用にしたい場合は、`contextId` が変わったターンでは `--resume` を使わず転写方式で新しいセッションを始める設定（`config.json` の `freshSessionOnContextChange: true`）を用意します。既定は `false` にし、V11 で古い回答の頻度を計ってから既定を決めます。
 
 R12 の解釈は次のとおりです。ブリッジやシステムプロンプトから収集状況を毎ターン注入することはしません。AI が skill で読んだ結果がそのスレッドの CLI セッションに残ることは許容します。スレッドを新規作成すれば文脈は空になります。
 
 ## 10. ストリーミングの詳細
 
 - Claude: `stream-json` の各行を JSON として読み、`type === 'stream_event'` かつ `event.type === 'content_block_delta'` かつ `event.delta.type === 'text_delta'` の `text` を `delta` に変換します。`event.type === 'content_block_start'` で `content_block.type === 'tool_use'` なら `status` を出します。`type === 'result'` で `session_id`、`usage`、`is_error` を取ります。行が JSON として壊れていたら捨てて続行し、プロセス終了コードが非 0 で本文が空なら `error` にします。
-- Codex: `--json` の各行の `type` を見て、`item.completed` かつ `item.type === 'agent_message'` の `text` を流します。`thread.started` の `thread_id` を `cliSessionId` にします。`turn.completed` の `usage` を使います。トークン単位の delta イベントが存在すれば `delta` に切り替えます（未検証）。
+- Codex: `--json` の各行の `type` を見て、`item.completed` かつ `item.type === 'agent_message'` の `text` を流します。`thread.started` の `thread_id` を `cliSessionId` にします。`turn.completed` の `usage` を使います。トークン単位の delta イベントは無いので（V3）、`item.completed` ごとに 1 つの `delta` として流します。
 - ブラウザ側は `delta` を受けるたびに末尾のメッセージに追記し、`message-scroller.tsx` の自動追従を使います。描画は `requestAnimationFrame` でまとめ、1 フレームに 1 回の setState にします。
 
 ## 11. 設定ファイル（`chat/config.json`）
@@ -503,7 +510,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 
 フェーズ 2
 
-1. Codex アダプタ（skill 配置先、delta の有無、シェルツールを外せるかを検証してから。§5.6）
+1. Codex アダプタ（V3〜V5・V10 は検証済み。`agent_message` 完了単位の表示で実装する）
 2. モバイル（Sheet）対応の調整
 3. 使用トークン表示、キャンセル時の中途保存
 
@@ -514,25 +521,27 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 
 ## 13. 未確定事項・要検証
 
-実装前に手元で確認する項目です。結果によって設計の該当箇所を直します。
+検証日: 2026-09-12。環境は `claude` 2.1.268、`codex` 0.147.0、macOS、スクラッチ領域に §5.5 と同じ構成のジョブ cwd を作って実行。
 
-| # | 項目 | 影響箇所 | 確認方法 |
-|---|------|----------|----------|
-| V1 | `claude --system-prompt-file` が 2.1.268 で使えるか（`--help` の `--bare` 説明にのみ記載あり） | §5.3 | 実行して確認。無ければ `--system-prompt "$(cat …)"` 相当を argv で渡す |
-| V2 | `--setting-sources project` で `chat/workspace/.claude/skills` が読まれるか。`--bare` を付けると skill 探索が止まるか | §4.2, §6.2 | `--tools "Skill,Read"` で「収集状況を教えて」を投げ、skill が呼ばれるか stream-json で見る |
-| V3 | `codex exec --json` にトークン単位の delta イベントがあるか | §5.3, §10 | 実行して JSONL を目視 |
-| V4 | Codex が cwd 配下のどこから skill を探すか（`.codex/skills`、`.agents/skills` など） | §6.2 | Codex のドキュメントと実行で確認 |
-| V5 | `codex exec --ignore-user-config` を付けると `~/.codex/auth.json` の認証も無視されるか | §5.3 | 実行して確認。無視されるなら付けない |
-| V6 | `https://` のサイトから `http://127.0.0.1` への fetch が Safari で通るか。Chrome の Local Network Access 許可ダイアログの挙動 | §5.6 | 各ブラウザで `/health` を叩く |
-| V7 | `claude -p` の初回応答時間（ツール無効・haiku）と、skill 参照時の追加時間（毎回読み直す前提） | §4, §9.2 | 10 回計測して中央値を README に書く |
-| V8 | Cloudflare Access 配下のページから 127.0.0.1 への fetch に Access の Cookie や CSP が干渉しないか | §5.6 | デプロイ後に確認 |
-| V9 | `claude -p --tools "Read,Skill"` で cwd 外のファイルを Read しようとしたとき、非対話モードで拒否されるか。シンボリックリンク先（`chat/workspace/contexts`）は cwd 内扱いになるか | §5.5, §5.6 | ジョブ cwd から `../../contexts/…` と `~/.zshrc` を読ませて結果を見る |
-| V10 | Codex でシェルツール自体を無効化する設定（`-c` のキーや features）があるか。無ければ `--sandbox read-only` で書き込み・ネットワークが実際に遮断されるか | §5.6 | `codex exec --help` と設定リファレンス、`touch` と `curl` を試す |
-| V11 | 継続セッション（`--resume`）で、収集状況を更新してから同じ質問をしたとき、§9.2 の 1〜3 だけで新しい内容を答えるか | §9.2 | 10 回試行して古い回答の回数を記録し、`freshSessionOnContextChange` の既定を決める |
+| # | 項目 | 結果 | 設計への反映 |
+|---|------|------|--------------|
+| V1 | `claude --system-prompt-file` が使えるか | **確認済み**。ファイルの内容が役割として反映された | そのまま採用 |
+| V2 | `--setting-sources project` で cwd の `.claude/skills` が読まれるか。`--bare` の影響 | **確認済み**。skill は `init` イベントの一覧に載り、`Skill` → `Read` の順で呼ばれた。ただし `data/` がシンボリックリンクだと Read が cwd 外扱いで拒否され、`--add-dir` を付けると読めた。`--bare` は「Not logged in」で失敗し、skill も列挙されない | `--add-dir <snapshot dir>` を必須にした（§5.3）。`--bare` は不採用（§4.2） |
+| V3 | `codex exec --json` にトークン単位の delta があるか | **無し**。イベントは `thread.started` / `turn.started` / `item.started` / `item.completed` / `turn.completed` のみ | Codex は `agent_message` 完了単位の表示（§5.3、§10） |
+| V4 | Codex の skill 探索パス | **確認済み**。cwd の `.agents/skills` と `.codex/skills` の両方で `dex-compass-collection` が一覧に出た | ジョブ cwd に `.agents/skills` リンクを追加（§5.5） |
+| V5 | `--ignore-user-config` で認証が残るか | **残る**。`auth.json` は別扱いで応答が返った | Codex に常時付ける（§4.2） |
+| V6 | `https://` ページから `http://127.0.0.1` への fetch（Safari、Chrome の許可ダイアログ） | **未検証**。ブラウザ操作が必要 | 実装時に確認 |
+| V7 | `claude -p` の応答時間 | haiku・ツール無効・10 回: 中央値 5.33 秒（4.86〜6.55）。skill 参照あり・5 回: 中央値 11.13 秒（10.5〜15.86）、毎回 4 ターン | §4.1 と §9.2 に記載 |
+| V8 | Cloudflare Access 配下での fetch への干渉 | **未検証**。デプロイ後 | 実装時に確認 |
+| V9 | cwd 外の Read が非対話モードで拒否されるか。リンク先の扱い | **拒否される**。`~/.zshrc` は「許可されていない」で失敗。`--add-dir` 指定のディレクトリ配下のリンク先は読めた | §5.6 に記載 |
+| V10 | Codex のシェル無効化設定の有無。`read-only` の実効性 | `features.shell_tool` / `unified_exec` を false にできるが、モデルはユーザー設定の MCP（`cua_repl`）でサンドボックス外の JavaScript に回った。`--sandbox read-only` では `touch` が `Operation not permitted`、`curl` が exit 6 で、書き込みと外部通信は遮断された | シェルは残し、`--ignore-user-config` で MCP を外す（§5.6） |
+| V11 | 継続セッションで収集状況を更新後、同じ質問に新しい内容を答えるか | **未検証**。発言ヘッダーと `--resume` の実装が必要 | 実装後に 10 回計測して `freshSessionOnContextChange` の既定を決める |
+
+未検証で残るのは V6・V8・V11 の 3 件です。V6 と V8 はブラウザとデプロイ環境が必要で、V11 は実装後に計測します。
 
 ## 14. テスト方針
 
-- ブリッジ: `scripts/fake-claude.mjs`（stream-json を固定間隔で吐く偽 CLI）を `PATH` の先頭に置いた状態で、`/contexts` → `/threads` → `/messages` → `/jobs/:id/events` の流れ、途中接続時の `snapshot` に受信済み本文が全部入ること、未登録 `contextId` の 409、ジョブ cwd の 4 つのリンクが `realpath` で `chat/prompts/system.md`・`chat/skills/dex-compass-collection`・`chat/workspace/contexts/<contextId>` に解決すること、完了後 10 分経過でジョブが 404 になってもスレッドの `status` が `done` のまま残ること、起動時に `streaming` 残留メッセージが `error` に直されること、キャンセル、Origin 拒否、トークン不一致、タイムアウトを `node --test` で確認します。
+- ブリッジ: `scripts/fake-claude.mjs`（stream-json を固定間隔で吐く偽 CLI）を `PATH` の先頭に置いた状態で、`/contexts` → `/threads` → `/messages` → `/jobs/:id/events` の流れ、途中接続時の `snapshot` に受信済み本文が全部入ること、未登録 `contextId` の 409、ジョブ cwd の 5 つのリンクが `realpath` で `chat/prompts/system.md`・`chat/skills/dex-compass-collection`・`chat/workspace/contexts/<contextId>` に解決すること、完了後 10 分経過でジョブが 404 になってもスレッドの `status` が `done` のまま残ること、起動時に `streaming` 残留メッセージが `error` に直されること、キャンセル、Origin 拒否、トークン不一致、タイムアウトを `node --test` で確認します。
 - フロント: 既存の `pnpm test` は engine 確認のみなので、`ChatDock` は手動確認のチェックリストを README に置きます（開閉、幅、生成中にページ遷移して本文が欠けないこと、チェック直後の質問が新しい収集状況を反映すること、サイト版と単一 HTML 版を同時に開いても互いの記録を上書きしないこと、履歴削除、未接続表示、モバイル幅）。
 - 型と lint: `corepack pnpm exec tsc --noEmit`、`corepack pnpm lint`、`corepack pnpm build`、`corepack pnpm build:html` を通します。
 
