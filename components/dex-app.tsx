@@ -5,6 +5,7 @@ import Image from 'next/image';
 import evolutionData from '@/data/evolution.json';
 import { pageHref } from '@/lib/href';
 import { storage, StorageError } from '@/lib/storage';
+import { setPageContext, syncCollection } from '@/lib/chat/context';
 const evolutions: Record<string, { gameGroup: string; text: string }[]> =
   evolutionData;
 import {
@@ -189,6 +190,7 @@ export default function DexApp({
     [layout, setLayout] = useState('grid'),
     [page, setPage] = useState(1),
     [advanced, setAdvanced] = useState(false);
+  useEffect(() => setPageContext({ view, id }), [view, id]);
   useEffect(() => {
     let active = true;
     Promise.resolve()
@@ -211,6 +213,7 @@ export default function DexApp({
     };
   }, []);
   useEffect(() => {
+    syncCollection(s, loaded);
     if (!loaded) return;
     let active = true;
     Promise.resolve()

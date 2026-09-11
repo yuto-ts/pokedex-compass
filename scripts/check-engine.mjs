@@ -119,3 +119,20 @@ assert.throws(() =>
 console.log(
   'PASS: fixed mode vs difficulty mode; unreviewed candidates excluded; invalid flags protected.',
 );
+const { buildCollection } = loadTs('../lib/chat/collection.ts');
+const table = buildCollection({
+  ...initial,
+  progress: {
+    25: { caught: true, sent: true, forms: { 通常の姿: true } },
+    150: { preserve: true },
+  },
+});
+const rows = table.split('\n').filter((l) => /^\|\d+\|/.test(l));
+assert.equal(rows.length, 1025);
+assert.equal(rows[24], '|25|ピカチュウ|1|通常|捕送|通常の姿|');
+assert.equal(rows[149], '|150|ミュウツー|1|伝説|大||');
+assert.equal(rows[0], '|1|フシギダネ|1|通常|||');
+assert.match(table, /- 捕獲: 1 \/ 1025（未捕獲 1024）/);
+console.log(
+  `PASS: chat collection.md lists 1,025 rows (${Buffer.byteLength(table)} bytes, ${table.length} chars).`,
+);

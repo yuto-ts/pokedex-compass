@@ -1,7 +1,11 @@
 import { useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
+import ChatDock from '@/components/chat/chat-dock';
 import DexApp from '@/components/dex-app';
+import { setChatSource } from '@/lib/chat/context';
 import '@/app/globals.css';
+
+setChatSource('standalone');
 
 const views = ['missing', 'legends', 'routes', 'bank', 'settings', 'living'];
 
@@ -22,4 +26,9 @@ function App() {
 }
 
 window.addEventListener('hashchange', () => window.scrollTo(0, 0));
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <>
+    <App />
+    <ChatDock />
+  </>,
+);
