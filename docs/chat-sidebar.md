@@ -530,7 +530,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 | V3 | `codex exec --json` にトークン単位の delta があるか | **無し**。イベントは `thread.started` / `turn.started` / `item.started` / `item.completed` / `turn.completed` のみ | Codex は `agent_message` 完了単位の表示（§5.3、§10） |
 | V4 | Codex の skill 探索パス | **確認済み**。cwd の `.agents/skills` と `.codex/skills` の両方で `dex-compass-collection` が一覧に出た | ジョブ cwd に `.agents/skills` リンクを追加（§5.5） |
 | V5 | `--ignore-user-config` で認証が残るか | **残る**。`auth.json` は別扱いで応答が返った | Codex に常時付ける（§4.2） |
-| V6 | `https://` ページから `http://127.0.0.1` への fetch（Safari、Chrome の許可ダイアログ） | **Chrome 152 は確認済み**。https://example.com から fetch すると Local Network Access の許可ダイアログが出て、fetch はユーザーが応答するまで保留になる。許可後は通常の fetch・プリフライト付き PUT・`EventSource`（`text/event-stream`）・`fetch` の `ReadableStream` がすべて通り、SSE の各チャンクは送信間隔（300 ms）どおり届いた。headless では自動拒否され `LocalNetworkAccessPermissionDenied` になる。mixed content ではない（`--disable-features=LocalNetworkAccessChecks` で通る）。**Safari は未確認**（AppleScript からの操作が許可待ちでタイムアウト） | §5.6 と §7.4 に許可ダイアログの扱いを追記。Safari は手動確認待ち |
+| V6 | `https://` ページから `http://127.0.0.1` への fetch（Safari、Chrome の許可ダイアログ） | **Chrome 152 は確認済み**。https://example.com から fetch すると Local Network Access の許可ダイアログが出て、fetch はユーザーが応答するまで保留になる。許可後は通常の fetch・プリフライト付き PUT・`EventSource`（`text/event-stream`）・`fetch` の `ReadableStream` がすべて通り、SSE の各チャンクは送信間隔（300 ms）どおり届いた。headless では自動拒否され `LocalNetworkAccessPermissionDenied` になる。mixed content ではない（`--disable-features=LocalNetworkAccessChecks` で通る）。**Safari は未確認**で、対象外とする（利用しないため） | §5.6 と §7.4 に許可ダイアログの扱いを追記。対応ブラウザは Chrome のみと明記（§16） |
 | V7 | `claude -p` の応答時間 | haiku・ツール無効・10 回: 中央値 5.33 秒（4.86〜6.55）。skill 参照あり・5 回: 中央値 11.13 秒（10.5〜15.86）、毎回 4 ターン | §4.1 と §9.2 に記載 |
 | V8 | Cloudflare Access 配下での fetch への干渉 | **未検証**。デプロイ後 | 実装時に確認 |
 | V9 | cwd 外の Read が非対話モードで拒否されるか。リンク先の扱い | **拒否される**。`~/.zshrc` は「許可されていない」で失敗。`--add-dir` 指定のディレクトリ配下のリンク先は読めた | §5.6 に記載 |
@@ -538,13 +538,13 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 | V11 | 継続セッションで収集状況を更新後、同じ質問に新しい内容を答えるか | **未検証**。発言ヘッダーと `--resume` の実装が必要 | 実装後に 10 回計測して `freshSessionOnContextChange` の既定を決める |
 | V12 | ジョブごとに cwd を変えても `claude -p --resume` が前のセッションを引き継ぐか（§5.5 と §9.1 の両立） | **引き継ぐ**。`jobs/j1` で始めたセッションを `jobs/j2` から `--resume` し、前ターンの内容を答えた | §5.5 の per-job cwd をそのまま採用 |
 
-未検証で残るのは V6・V8・V11 の 3 件です。V6 と V8 はブラウザとデプロイ環境が必要で、V11 は実装後に計測します。
+未検証で残るのは V8 と V11 の 2 件です。V8 はデプロイ後に、V11 は実装後に計測します。V6 は Chrome で確認済み、Safari は対象外です。
 
 ## 16. 残るリスクと成立条件
 
 設計変更後に残るリスクを、致命度の高い順に挙げます。
 
-1. **V6 が通らないとサイト版でチャットが使えない（成立条件）**。ブラウザが `https://` ページから `http://127.0.0.1` への fetch を止めると、ブリッジ方式はサイト版で成り立ちません。Chrome 152 は許可ダイアログ経由で通ることを確認しました（V6）。Safari は未確認です。通らなかった場合の代替は、(a) ブリッジを `https://127.0.0.1` にして自己署名証明書を信頼させる、(b) サイト版ではチャットを無効にし `pnpm dev` と単一 HTML 版（`allowNullOrigin: true`）に限定する、の 2 つです。実装前に Chrome と Safari で `fetch('http://127.0.0.1:47117/health')` を試して決めます。
+1. **V6 が通らないとサイト版でチャットが使えない（成立条件）**。ブラウザが `https://` ページから `http://127.0.0.1` への fetch を止めると、ブリッジ方式はサイト版で成り立ちません。Chrome 152 は許可ダイアログ経由で通ることを確認しました（V6）。Safari は未確認のまま対象外とし、README とドックの未接続画面に「対応ブラウザは Chrome」と書きます。通らなかった場合の代替は、(a) ブリッジを `https://127.0.0.1` にして自己署名証明書を信頼させる、(b) サイト版ではチャットを無効にし `pnpm dev` と単一 HTML 版（`allowNullOrigin: true`）に限定する、の 2 つです。実装前に Chrome と Safari で `fetch('http://127.0.0.1:47117/health')` を試して決めます。
 2. **Codex はサンドボックス内でディスク全体を読める**。`--sandbox read-only` は書き込みと外部通信を止めますが読み取りは止めず、`web.run`（OpenAI 側の検索）も残ります。プロンプトインジェクションの入口はユーザー自身の発言と `collection.md`（ポケモン名と ○ だけ）なので現実的な経路は狭いものの、ゼロではありません。Codex はフェーズ 2 に置き、AI 選択欄に注記します。
 3. **ローカルの HTTP サーバーが他サイトから叩かれる**。Origin 許可リストとトークンで防ぎます。Origin ヘッダーはブラウザが付けるため偽装できず、トークンは許可した Origin の localStorage にしかありません。残るのはサイト自身の XSS 経由で、これは既存の `/api/state` と同じ前提です。
 4. **サブスクリプションの消費**。Codex は 1 ターン 14,000〜39,000 入力トークン、Claude は skill 参照で 4 ターンです。同時 1 ジョブと軽いモデルの既定で抑えますが、上限に当たると「しばらく使えない」状態になります。ブリッジは CLI のレート制限エラーをそのままドックに表示します。
