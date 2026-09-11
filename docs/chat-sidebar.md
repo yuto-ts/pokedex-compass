@@ -4,6 +4,7 @@
 対象ブランチ: `claude/pokemon-chat-sidebar-e6b7ab`
 状態: 設計案（未実装）
 改訂: 2026-09-12 PR #1 の設計レビュー（4 件）を反映。§5.2・§5.5・§6.4・§7.3・§8・§9 を書き直し、§13 に V9〜V11 を追加
+改訂 2: 2026-09-12 再レビュー（2 件）を反映。§5.5 のリンク先パス、§5.2・§7.3 の 404 時の扱いを修正
 
 ## 1. 要件
 
@@ -143,9 +144,9 @@ SSE のイベント種別は 5 つです。
 
 1. ブリッジは `delta` を受け取るたびにジョブの `content` に追記し、同じ文字列をスレッドファイル内の生成中メッセージにも 500 ms ごとと `done` 時に書き出す。
 2. クライアントは `GET /jobs/:id/events` に接続し、`snapshot.content` で表示を置き換えてから `delta` を追記する。`Last-Event-ID` は使わない。
-3. ブリッジが再起動していてジョブが無い場合は 404 を返す。クライアントは `GET /threads/:id` から本文を取り直し、そのメッセージを `status: 'error'`（「ブリッジ再起動のため中断」）として扱う。
+3. ジョブが無い場合（ブリッジ再起動、または完了から 10 分経過して破棄済み）は 404 を返す。404 はどちらの理由かを区別しないので、クライアントは `GET /threads/:id` を取り直し、スレッドファイルに保存された終了状態を優先する。保存済みの `status` が `done` / `cancelled` / `error` ならそのまま表示する。`streaming` のままで対応ジョブが無いときだけ、そのメッセージを `status: 'error'`（「ブリッジが停止したため中断」）として扱い、スレッドファイルにもその状態を書き戻す（`PATCH` は設けず、ブリッジ起動時に `streaming` のまま残っているメッセージを一括で `error` に直す）。
 
-ジョブは完了後も 10 分間はメモリに保持し、ページ遷移直後の再接続に応えられるようにします。
+ブリッジは `done` 時にメッセージの最終 `status` と本文をスレッドファイルへ書き出してからジョブを破棄対象にします。この順序により、正常終了した回答が 404 を経由して `error` になることはありません。ジョブは完了後も 10 分間はメモリに保持し、ページ遷移直後の再接続に応えられるようにします。
 
 ### 5.3 プロバイダアダプタ
 
@@ -214,12 +215,14 @@ codex exec --json -m gpt-5.5 \
 
 ```
 chat/workspace/jobs/<jobId>/
-  CLAUDE.md   → ../../../prompts/system.md
-  AGENTS.md   → ../../../prompts/system.md
-  .claude/skills/dex-compass-collection → ../../../../skills/dex-compass-collection
-  data        → ../../contexts/<contextId>
+  CLAUDE.md   → <repo>/chat/prompts/system.md
+  AGENTS.md   → <repo>/chat/prompts/system.md
+  .claude/skills/dex-compass-collection → <repo>/chat/skills/dex-compass-collection
+  data        → <repo>/chat/workspace/contexts/<contextId>
 ```
 
+- リンク先はブリッジが `path.resolve(repoRoot, …)` で絶対パスとして計算します。相対パスで書くと階層を数え違えやすいためです（再レビュー指摘 1。相対で書くなら skill のリンクは `../../../../../skills/dex-compass-collection` で、5 階層上がります）。
+- 作成後に `fs.realpath` で 4 つのリンク先が存在することを確認し、無ければジョブを `error` で終了します。テストでもこの解決結果を検証します（§14）。
 - 中身はシンボリックリンクだけなので作成は数 ms です。ジョブの保持期間（10 分）が過ぎたら削除します。
 - skill 本文は常に `data/collection.md` を読めばよく、どの版を読むかはブリッジが決めます。AI には版の選択をさせません。
 - Codex 用の skill 探索パスが `.claude/skills` と異なる場合は、同じディレクトリにリンクを追加します（V4）。
@@ -345,7 +348,7 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
 
 1. マウント時に `GET /threads/:id` でスレッドを取得し、メッセージ一覧を描画する。生成中のメッセージは受信済み本文（ブリッジが 500 ms ごとに書き出したもの）と `jobId` を含む。
 2. `jobId` があれば `GET /jobs/:id/events` に接続する。最初の `snapshot.content` でそのメッセージの本文を置き換え（1 で得た本文より新しい）、以降の `delta` を追記する。
-3. 404 なら（ブリッジ再起動）、1 で得た本文を残したままメッセージを `error` 表示にする。
+3. 404 なら `GET /threads/:id` を取り直す。保存済みの `status` が `done` / `cancelled` / `error` ならそれを表示する（完了から 10 分以上経って戻ってきた場合がこれに当たる）。`streaming` のままで対応ジョブが無いときだけ `error`（「ブリッジが停止したため中断」）として表示する（§5.2 の契約と同じ）。
 
 ブリッジ側のジョブはページ遷移で止まりません。遷移中に届いた分は `snapshot` に含まれるので、取りこぼしや二重表示は起きません。
 
@@ -529,7 +532,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 
 ## 14. テスト方針
 
-- ブリッジ: `scripts/fake-claude.mjs`（stream-json を固定間隔で吐く偽 CLI）を `PATH` の先頭に置いた状態で、`/contexts` → `/threads` → `/messages` → `/jobs/:id/events` の流れ、途中接続時の `snapshot` に受信済み本文が全部入ること、未登録 `contextId` の 409、ジョブ cwd の `data/` が指定のスナップショットを指すこと、キャンセル、Origin 拒否、トークン不一致、タイムアウトを `node --test` で確認します。
+- ブリッジ: `scripts/fake-claude.mjs`（stream-json を固定間隔で吐く偽 CLI）を `PATH` の先頭に置いた状態で、`/contexts` → `/threads` → `/messages` → `/jobs/:id/events` の流れ、途中接続時の `snapshot` に受信済み本文が全部入ること、未登録 `contextId` の 409、ジョブ cwd の 4 つのリンクが `realpath` で `chat/prompts/system.md`・`chat/skills/dex-compass-collection`・`chat/workspace/contexts/<contextId>` に解決すること、完了後 10 分経過でジョブが 404 になってもスレッドの `status` が `done` のまま残ること、起動時に `streaming` 残留メッセージが `error` に直されること、キャンセル、Origin 拒否、トークン不一致、タイムアウトを `node --test` で確認します。
 - フロント: 既存の `pnpm test` は engine 確認のみなので、`ChatDock` は手動確認のチェックリストを README に置きます（開閉、幅、生成中にページ遷移して本文が欠けないこと、チェック直後の質問が新しい収集状況を反映すること、サイト版と単一 HTML 版を同時に開いても互いの記録を上書きしないこと、履歴削除、未接続表示、モバイル幅）。
 - 型と lint: `corepack pnpm exec tsc --noEmit`、`corepack pnpm lint`、`corepack pnpm build`、`corepack pnpm build:html` を通します。
 
