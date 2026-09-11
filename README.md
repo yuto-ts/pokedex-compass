@@ -47,9 +47,20 @@ Switch作品の入手場所：Serebii各種ページのLocations表。`data/mode
 
 ## 保存と移行
 
-`lib/dex.ts`のstorageアダプターがlocalStorageへのI/Oを担当。キー`dex-compass-v1`、schema version 1。
-状態モデル（State/Progress）とおすすめ・集計ロジックはUIから分離。Supabaseへ移行する場合はこのアダプターを非同期リポジトリーへ置き換えてください。
-破損データは上書きせずエラーを表示。保存不能を成功として扱いません。アカウント同期や端末間同期は未実装。
+状態モデル（State/Progress）と検証は`lib/state.ts`、保存のI/Oは`lib/storage.ts`が担当します。schema version 1。
+
+- サイト版：`/api/state`（`app/api/state/route.ts`）経由でCloudflare D1の`state`テーブルに1行で保存します。テーブルは初回アクセス時に作成します。
+- 保存のたびにrevisionを照合し、他の端末で先に更新されていれば409を返して上書きしません。画面には再読み込みを促すメッセージを出します。
+- 単一HTML版：`standalone/storage.ts`がlocalStorage（キー`dex-compass-v1`）に保存します。
+
+破損データは上書きせずエラーを表示。保存不能を成功として扱いません。
+
+## Cloudflareへのデプロイ
+
+`corepack pnpm run deploy`でビルドし、Worker `pokedex-compass`としてデプロイします。D1の接続先：`vite.config.ts`の`d1_databases`。
+
+アクセス制限：Cloudflare Access。APIはAccessが付与するJWT（`Cf-Access-Jwt-Assertion`）を`jose`で検証します。`vite.config.ts`の`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD`が未設定なら、APIはすべて403。
+ローカルの`corepack pnpm dev`では検証を省略し、D1はMiniflareのローカルDBを使用。
 
 ## 出典と権利
 

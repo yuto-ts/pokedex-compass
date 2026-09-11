@@ -4,24 +4,30 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import assert from 'node:assert/strict';
 const require = createRequire(import.meta.url);
-const source = readFileSync(new URL('../lib/dex.ts', import.meta.url), 'utf8');
-const js = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.CommonJS,
-    target: ts.ScriptTarget.ES2022,
-    esModuleInterop: true,
-  },
-}).outputText;
-const engineModule = { exports: {} };
-const ctx = {
-  module: engineModule,
-  exports: engineModule.exports,
-  require: (p) =>
-    p.startsWith('@/') ? require('../' + p.slice(2)) : require(p),
-  localStorage: { getItem: () => null, setItem: () => {} },
-};
-vm.runInNewContext(js, ctx);
-const { pokemon, recommend, initial, available, optimize, storage } =
+function loadTs(path) {
+  const source = readFileSync(new URL(path, import.meta.url), 'utf8');
+  const js = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true,
+    },
+  }).outputText;
+  const mod = { exports: {} };
+  vm.runInNewContext(js, {
+    module: mod,
+    exports: mod.exports,
+    require: (p) =>
+      p.startsWith('@/lib/')
+        ? loadTs('../' + p.slice(2) + '.ts')
+        : p.startsWith('@/')
+          ? require('../' + p.slice(2))
+          : require(p),
+  });
+  return mod.exports;
+}
+const engineModule = { exports: loadTs('../lib/dex.ts') };
+const { pokemon, recommend, initial, available, optimize, parseState } =
   engineModule.exports;
 assert.equal(pokemon.length, 1025);
 assert.equal(new Set(pokemon.map((p) => p.id)).size, 1025);
@@ -70,9 +76,9 @@ assert.equal(
   Object.values(plan.groups).flat().length + plan.unresolved.length,
   1024,
 );
-assert.equal(storage.load().version, 1);
-ctx.localStorage.getItem = () => '{broken';
-assert.throws(() => storage.load());
+assert.equal(parseState(JSON.parse(JSON.stringify(initial))).version, 1);
+assert.throws(() => parseState('{broken'));
+assert.throws(() => parseState(null));
 console.log(
   'PASS: 1,025 unique species; DLC/version constraints; past events; captured exclusion; unresolved accounting; storage errors.',
 );
@@ -107,9 +113,9 @@ assert.equal(
   available({ game: 'X', method: 'gift', needsReview: true }, initial),
   false,
 );
-ctx.localStorage.getItem = () =>
-  JSON.stringify({ ...initial, progress: { 1: { caught: 'yes' } } });
-assert.throws(() => storage.load());
+assert.throws(() =>
+  parseState({ ...initial, progress: { 1: { caught: 'yes' } } }),
+);
 console.log(
   'PASS: fixed mode vs difficulty mode; unreviewed candidates excluded; invalid flags protected.',
 );

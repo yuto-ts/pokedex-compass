@@ -1,6 +1,14 @@
 import raw from '@/data/pokemon.json';
 import imported from '@/data/routes.json';
 import modern from '@/data/modern-routes.json';
+import type { State } from '@/lib/state';
+export {
+  defaults,
+  initial,
+  parseState,
+  type Progress,
+  type State,
+} from '@/lib/state';
 export type Pokemon = (typeof raw)[number];
 export type Route = {
   needsReview?: boolean;
@@ -45,21 +53,6 @@ export const dlcs = [
   'Scarlet：ゼロの秘宝',
   'Violet：ゼロの秘宝',
   'Z-A：M次元ラッシュ',
-];
-export const defaults = [
-  'Black',
-  'White',
-  'X',
-  'Sun',
-  'Moon',
-  'Ultra Sun',
-  'Ultra Moon',
-  'Sword',
-  'Shield',
-  'Legends: Arceus',
-  'Scarlet',
-  'Violet',
-  'Legends Z-A',
 ];
 export const routes: Record<string, Route[]> = imported;
 const sv = 'https://www.serebii.net/scarletviolet/snacksworthlegendary.shtml';
@@ -251,28 +244,6 @@ add(
   'https://www.serebii.net/pokedex-swsh/zarude/',
   { status: '過去配布のみ' },
 );
-export type Progress = {
-  caught?: boolean;
-  sent?: boolean;
-  registered?: boolean;
-  living?: boolean;
-  forms?: Record<string, boolean>;
-  preserve?: boolean;
-};
-export type State = {
-  version: 1;
-  owned: string[];
-  dlc: string[];
-  fixed: boolean;
-  progress: Record<string, Progress>;
-};
-export const initial: State = {
-  version: 1,
-  owned: defaults,
-  dlc: [],
-  fixed: true,
-  progress: {},
-};
 export const bankSource =
   'https://www.pokemon.co.jp/info/2022/02/220216_gm01.html?rss=260813';
 export function available(r: Route, s: State) {
@@ -348,43 +319,6 @@ export const labels: Record<string, string> = {
   random: 'ランダム遭遇',
   event: '過去配布',
   unavailable: '現在入手不可',
-};
-export const storage = {
-  load(): State {
-    const raw = localStorage.getItem('dex-compass-v1');
-    if (!raw) return initial;
-    const s = JSON.parse(raw);
-    if (
-      s.version !== 1 ||
-      !Array.isArray(s.owned) ||
-      !s.owned.every((x: unknown) => typeof x === 'string') ||
-      !Array.isArray(s.dlc) ||
-      !s.dlc.every((x: unknown) => typeof x === 'string') ||
-      typeof s.fixed !== 'boolean' ||
-      typeof s.progress !== 'object' ||
-      !s.progress ||
-      Array.isArray(s.progress)
-    )
-      throw Error('invalid');
-    for (const p of Object.values(s.progress)) {
-      if (!p || typeof p !== 'object' || Array.isArray(p))
-        throw Error('invalid progress');
-      for (const [k, v] of Object.entries(p)) {
-        if (k === 'forms') {
-          if (
-            !v ||
-            typeof v !== 'object' ||
-            Object.values(v).some((x) => typeof x !== 'boolean')
-          )
-            throw Error('invalid forms');
-        } else if (typeof v !== 'boolean') throw Error('invalid flag');
-      }
-    }
-    return { ...initial, ...s };
-  },
-  save(s: State) {
-    localStorage.setItem('dex-compass-v1', JSON.stringify(s));
-  },
 };
 const pla = 'https://www.serebii.net/legendsarceus/legendary.shtml';
 for (const id of [489, 490])

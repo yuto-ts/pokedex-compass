@@ -15,6 +15,10 @@ const [result] = await build({
   resolve: {
     alias: [
       { find: '@/lib/href', replacement: resolve(root, 'standalone/href.ts') },
+      {
+        find: '@/lib/storage',
+        replacement: resolve(root, 'standalone/storage.ts'),
+      },
       { find: 'next/link', replacement: resolve(root, 'standalone/link.tsx') },
       {
         find: 'next/image',

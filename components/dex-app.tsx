@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import evolutionData from '@/data/evolution.json';
 import { pageHref } from '@/lib/href';
+import { storage, StorageError } from '@/lib/storage';
 const evolutions: Record<string, { gameGroup: string; text: string }[]> =
   evolutionData;
 import {
@@ -65,7 +66,6 @@ import {
   priority,
   optimize,
   labels,
-  storage,
   available,
   score,
   bankSource,
@@ -199,10 +199,11 @@ export default function DexApp({
           setLoaded(true);
         }
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         if (active)
           setError(
-            '保存データを読み込めませんでした。既存データの上書きを停止しています。',
+            (e instanceof StorageError ? e.message : '') +
+              '保存データを読み込めませんでした。既存データの上書きを停止しています。',
           );
       });
     return () => {
@@ -213,16 +214,16 @@ export default function DexApp({
     if (!loaded) return;
     let active = true;
     Promise.resolve()
-      .then(() => {
-        if (active) storage.save(s);
-      })
+      .then(() => (active ? storage.save(s) : undefined))
       .then(() => {
         if (active) setError('');
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         if (active)
           setError(
-            '保存できませんでした。ブラウザのストレージ設定をご確認ください。',
+            e instanceof StorageError
+              ? e.message
+              : '保存できませんでした。ブラウザのストレージ設定をご確認ください。',
           );
       });
     return () => {
@@ -478,7 +479,7 @@ export default function DexApp({
               {error
                 ? '保存エラー'
                 : loaded
-                  ? '● このブラウザに自動保存'
+                  ? '● ' + storage.label
                   : '保存データを確認中'}
             </span>
           </header>
@@ -650,9 +651,7 @@ export default function DexApp({
                     Pokémon
                     GOのイベント開催状況は都度公式情報を確認してください。現在の開催を未確認の配布は、おすすめ計算から除外します。
                   </p>
-                  <p>
-                    保存先はこのブラウザのlocalStorageです。データ削除・別端末には引き継がれません。
-                  </p>
+                  <p>{storage.note}</p>
                   <a
                     className="source"
                     href="https://github.com/PokeAPI/pokeapi/tree/master/data/v2/csv"
