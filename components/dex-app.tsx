@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import evolutionData from '@/data/evolution.json';
+import { pageHref } from '@/lib/href';
 const evolutions: Record<string, { gameGroup: string; text: string }[]> =
   evolutionData;
 import {
@@ -439,7 +440,7 @@ export default function DexApp({
                     }
                     render={
                       <a
-                        href={url}
+                        href={pageHref(url)}
                         aria-label={label}
                         aria-current={
                           (url === '/' && view === 'dex') || url === '/' + view
