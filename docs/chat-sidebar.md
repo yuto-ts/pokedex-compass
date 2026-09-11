@@ -3,6 +3,7 @@
 作成日: 2026-09-11
 対象ブランチ: `claude/pokemon-chat-sidebar-e6b7ab`
 状態: 設計案（未実装）
+改訂: 2026-09-12 PR #1 の設計レビュー（4 件）を反映。§5.2・§5.5・§6.4・§7.3・§8・§9 を書き直し、§13 に V9〜V11 を追加
 
 ## 1. 要件
 
@@ -21,7 +22,7 @@
 | R9 | 共通のシステムプロンプトを開始時に挿入する | 毎回同じ文面を先頭に入れる |
 | R10 | システムプロンプトは git 管理し、いつでも変更できる | リポジトリ内の Markdown を編集すれば次の質問から反映される（再起動不要） |
 | R11 | システムプロンプトから pokedex-compass の情報（捕獲・保管状況）にアクセスできる | AI が「何を捕まえたか」「HOME に送ったか」等に答えられる |
-| R12 | R11 の情報は skill 等で保存し、常時コンテキストに入れない | 収集状況は必要な質問のときだけ読み込まれる |
+| R12 | R11 の情報は skill 等で保存し、常時コンテキストに入れない | ブリッジ側から毎ターン収集状況を注入しない。AI が skill で読んだ内容がその CLI セッションの文脈に残ることは許容する（§9.2） |
 
 ## 2. 現状の前提（確認済み）
 
@@ -44,25 +45,25 @@
 │ ブラウザ                       │ ───────────────▶ │ chat bridge (Node, ローカル) │
 │  DexApp (既存)                │                  │  chat/bridge/server.mjs     │
 │  ChatDock (新規, 右端に固定)    │ ◀─────────────── │  - スレッド保存 (JSON)       │
-│  - スレッド/メッセージ表示      │   text delta     │  - 収集状況を skill 用に書出し │
-│  - 収集状態を PUT /context      │                  │  - CLI 起動・出力パース       │
+│  - スレッド/メッセージ表示      │   text delta     │  - 収集状況の版を保存         │
+│  - 収集状態を PUT /contexts     │                  │  - CLI 起動・出力パース       │
 └──────────────────────────────┘                  └────────────┬──────────────┘
                                                               spawn
                                     ┌─────────────────────────┴─────────────────────────┐
                                     │ claude -p … --output-format stream-json           │
                                     │ codex exec --json …                                │
-                                    │   cwd = chat/workspace/                            │
+                                    │   cwd = chat/workspace/jobs/<jobId>/ (§5.5)         │
                                     │     CLAUDE.md / AGENTS.md → chat/prompts/system.md │
-                                    │     .claude/skills/dex-compass-collection/SKILL.md │
-                                    │     data/collection.md, data/state.json (生成物)    │
+                                    │     .claude/skills/… → chat/skills/…               │
+                                    │     data/ → contexts/<contextId>/ (収集状況の版)    │
                                     └────────────────────────────────────────────────────┘
 ```
 
 役割分担は次のとおりです。
 
 - ブラウザ側 `ChatDock`: UI、ブリッジ接続、収集状態のアップロード、ページ遷移をまたぐ状態復元。
-- ブリッジ: CLI の起動と出力の逐次転送、履歴の永続化、システムプロンプトと skill 用データの配置。
-- `chat/` ディレクトリ: git 管理する文面（システムプロンプト、SKILL.md、設定）と、生成物（gitignore）。
+- ブリッジ: CLI の起動と出力の逐次転送、生成中本文の保持、履歴の永続化、収集状況スナップショットの保存とジョブへの固定。
+- `chat/` ディレクトリ: git 管理する文面（システムプロンプト、SKILL.md、設定）と、生成物 `chat/workspace/`（gitignore）。
 
 ## 4. AI バックエンドの選定
 
@@ -93,20 +94,20 @@
 chat/
   bridge/
     server.mjs           # HTTP サーバー本体（Node 標準モジュールのみ、依存追加なし）
-    jobs.mjs             # ジョブ管理（1 並列、キャンセル、SSE 再送バッファ）
+    jobs.mjs             # ジョブ管理（1 並列、キャンセル、本文の蓄積と保存）
     threads.mjs          # 履歴の読み書き
-    context.mjs          # 収集状況の書き出し
+    contexts.mjs         # 収集状況スナップショットの保存と参照
     providers/
       claude.mjs         # claude -p アダプタ
       codex.mjs          # codex exec アダプタ
   config.json            # ポート、許可 Origin、プロバイダとモデル一覧（git 管理）
   prompts/
     system.md            # 共通システムプロンプト（git 管理）
-  workspace/             # CLI の cwd
-    CLAUDE.md            # → ../prompts/system.md へのシンボリックリンク
-    AGENTS.md            # → ../prompts/system.md へのシンボリックリンク（Codex 用）
-    .claude/skills/dex-compass-collection/SKILL.md   # git 管理
-    data/                # gitignore。collection.md, state.json
+  skills/
+    dex-compass-collection/SKILL.md   # 収集状況 skill（git 管理）
+  workspace/             # 生成物。CLI の cwd はこの下の jobs/<jobId>/
+    contexts/<contextId>/collection.md, state.json   # gitignore。収集状況スナップショット
+    jobs/<jobId>/        # gitignore。ジョブごとの cwd（§5.5）
     history/             # gitignore。<threadId>.json
     .token               # gitignore。接続トークン
 ```
@@ -120,23 +121,31 @@ chat/
 | メソッド | パス | 用途 |
 |----------|------|------|
 | GET | `/health` | 稼働確認。`{ version, providers: [{ id, available, models }] }` を返す。`available` は `which claude` 等の結果 |
-| PUT | `/context` | 収集状況を受け取り `workspace/data/collection.md` と `state.json` に書く。本文は `{ collection: string, state: State }` |
+| PUT | `/contexts` | 収集状況のスナップショットを登録する。本文は `{ source, collection, state }`。応答は `{ contextId }`。同じ内容なら同じ id を返す（§5.4） |
 | GET | `/threads` | スレッド一覧（id, title, provider, model, updatedAt）。更新日時降順 |
 | POST | `/threads` | 新規スレッド。`{ provider, model }` |
-| GET | `/threads/:id` | メッセージ込みで返す |
+| GET | `/threads/:id` | メッセージ込みで返す。生成途中のメッセージは受信済み本文と `jobId` を含む |
 | DELETE | `/threads/:id` | 削除 |
-| POST | `/threads/:id/messages` | ユーザー発言を追加してジョブを開始。`{ content, page: { view, pokemonId? }, provider?, model? }`。`{ jobId, messageId }` を返す |
-| GET | `/jobs/:id/events` | SSE。`Last-Event-ID` があればその続きから再送する |
+| POST | `/threads/:id/messages` | ユーザー発言を追加してジョブを開始。`{ content, contextId, page: { view, pokemonId?, label }, provider?, model? }`。`contextId` が未登録なら 409。`{ jobId, messageId }` を返す |
+| GET | `/jobs/:id` | ジョブの現在値。`{ status, threadId, messageId, contextId, content }` |
+| GET | `/jobs/:id/events` | SSE。接続直後に `snapshot`（それまでの本文全体）を送り、その後を逐次送る |
 | POST | `/jobs/:id/cancel` | 生成中止。CLI プロセスにも SIGTERM を送る |
 
-SSE のイベント種別は 4 つです。
+SSE のイベント種別は 5 つです。
 
-- `meta`: `{ provider, model, cliSessionId? }`。開始直後に 1 回。
-- `delta`: `{ text }`。逐次テキスト。
+- `snapshot`: `{ messageId, status, content }`。接続ごとに最初に 1 回。`content` は接続時点までの本文全体。
+- `meta`: `{ provider, model, contextId, cliSessionId? }`。開始直後に 1 回。
+- `delta`: `{ text }`。`snapshot` 以降の逐次テキスト。
 - `status`: `{ kind: 'tool', name: 'Skill' | 'Read' }`。skill 参照中の表示に使う。
-- `done`: `{ status: 'done' | 'cancelled' | 'error', error?, usage? }`。最後に 1 回。
+- `done`: `{ status: 'done' | 'cancelled' | 'error', error?, usage? }`。最後に 1 回。ジョブが既に終わっていれば `snapshot` の直後に送る。
 
-ジョブは完了後も 10 分間はイベントを保持し、ページ遷移後の再接続（R7）で `Last-Event-ID` から再送できるようにします。再接続時に既に `done` していればその時点までを一括で返します。
+再接続の契約は次のとおりです。ブリッジがジョブの本文全体を保持しているので、クライアントは受信位置を覚えなくてよい構成にします。
+
+1. ブリッジは `delta` を受け取るたびにジョブの `content` に追記し、同じ文字列をスレッドファイル内の生成中メッセージにも 500 ms ごとと `done` 時に書き出す。
+2. クライアントは `GET /jobs/:id/events` に接続し、`snapshot.content` で表示を置き換えてから `delta` を追記する。`Last-Event-ID` は使わない。
+3. ブリッジが再起動していてジョブが無い場合は 404 を返す。クライアントは `GET /threads/:id` から本文を取り直し、そのメッセージを `status: 'error'`（「ブリッジ再起動のため中断」）として扱う。
+
+ジョブは完了後も 10 分間はメモリに保持し、ページ遷移直後の再接続に応えられるようにします。
 
 ### 5.3 プロバイダアダプタ
 
@@ -146,7 +155,7 @@ interface Provider {
   models(): Promise<string[]>;                 // config.json と CLI 側の情報を合成
   run(input: {
     systemPromptPath: string;                  // chat/prompts/system.md
-    workspace: string;                          // chat/workspace
+    cwd: string;                                // chat/workspace/jobs/<jobId>（§5.5）
     model: string;
     transcript: { role: 'user' | 'assistant'; content: string }[];  // 直近分
     prompt: string;                             // 今回の発言（画面コンテキスト付き）
@@ -173,7 +182,7 @@ claude -p \
   --permission-mode default
 ```
 
-- cwd は `chat/workspace`。プロンプトは stdin から渡します（argv 長の上限を避けるため）。
+- cwd はジョブごとの `chat/workspace/jobs/<jobId>`（§5.5）。プロンプトは stdin から渡します（argv 長の上限を避けるため）。
 - `stream_event` の `content_block_delta` で `delta.type === 'text_delta'` のものを `delta` として流します。`content_block_start` で `tool_use` が来たら `status` を出します。最後の `result` イベントから `session_id` と `usage` を取ります。
 - 2 ターン目以降は `--resume <session_id>` を優先し、失敗したら（セッションが消えている等）§9 の転写方式に切り替えます。
 
@@ -181,22 +190,49 @@ Codex アダプタの起動コマンド例です。
 
 ```bash
 codex exec --json -m gpt-5.5 \
-  -C chat/workspace --sandbox read-only --skip-git-repo-check \
+  -C chat/workspace/jobs/<jobId> --sandbox read-only --skip-git-repo-check \
   -
 ```
 
-- システムプロンプトは `chat/workspace/AGENTS.md`（`prompts/system.md` へのリンク）として読ませます。Codex は cwd の `AGENTS.md` を自動で読みます。
+- システムプロンプトはジョブ cwd の `AGENTS.md`（`prompts/system.md` へのリンク）として読ませます。Codex は cwd の `AGENTS.md` を自動で読みます。
+- `--sandbox read-only` はモデルが生成したシェルコマンドを「書き込み不可・ネットワーク不可」で実行する方針であり、シェル実行そのものを止めるものではありません（レビュー指摘 4）。Codex については「読み取り用コマンドの実行は許容する」設計にします。詳細は §5.6。
 - JSONL の `item.*` イベントのうち `item.type === 'agent_message'` の本文を流します。トークン単位の delta イベントが出るかは未検証です（§13）。出ない場合はメッセージ完了単位の表示になります。
 - 2 ターン目以降は `codex exec resume <thread_id> -` を使います。
 
-### 5.4 セキュリティ
+### 5.4 収集状況スナップショット（`PUT /contexts`）
+
+レビュー指摘 1（サイト版と単一 HTML 版が同じファイルを上書きし合う、質問がデバウンス前に走る）への対応です。収集状況を「最新 1 つ」ではなく内容ごとのスナップショットとして保持し、質問はスナップショット id に紐づけます。
+
+- `contextId` は `sha256(source + "\n" + collection + "\n" + JSON.stringify(state))` の先頭 16 桁です。同じ内容なら同じ id になるため、二重登録は起きません。
+- `source` は `site` / `dev` / `standalone` のいずれかで、`collection.md` の先頭行にも書き出します。AI が「どの保存先の記録か」を答えられるようにするためです。
+- 保存先は `chat/workspace/contexts/<contextId>/`。ブリッジは最新 30 件と、保持中のジョブまたはスレッドの最終ターンが参照している id を残し、それ以外を起動時と 1 時間ごとに削除します。
+- 未登録の `contextId` でメッセージを送ると 409 を返します。クライアントは再同期してから送り直します。
+
+### 5.5 ジョブごとの cwd
+
+同時 1 ジョブでも、ジョブ実行中に別の版のスナップショットが登録されることはあります。ジョブが読むファイルを固定するため、ジョブごとに cwd を作ります。
+
+```
+chat/workspace/jobs/<jobId>/
+  CLAUDE.md   → ../../../prompts/system.md
+  AGENTS.md   → ../../../prompts/system.md
+  .claude/skills/dex-compass-collection → ../../../../skills/dex-compass-collection
+  data        → ../../contexts/<contextId>
+```
+
+- 中身はシンボリックリンクだけなので作成は数 ms です。ジョブの保持期間（10 分）が過ぎたら削除します。
+- skill 本文は常に `data/collection.md` を読めばよく、どの版を読むかはブリッジが決めます。AI には版の選択をさせません。
+- Codex 用の skill 探索パスが `.claude/skills` と異なる場合は、同じディレクトリにリンクを追加します（V4）。
+
+### 5.6 セキュリティ
 
 ブラウザ上のどのサイトからでも `127.0.0.1:47117` に POST できてしまうため、次を必須にします。
 
 - **Origin の許可リスト**: `chat/config.json` の `allowedOrigins` に一致しない `Origin` は 403。既定はサイトのドメイン、`http://localhost:3000`、`http://127.0.0.1:3000`。単一 HTML 版（`file://`）は `Origin: null` になるため、`"null"` を許可するかどうかは設定で選べるようにし、既定では許可しません。
 - **接続トークン**: 初回起動時に生成して `workspace/.token` に保存し、起動ログに表示します。ブラウザはドックの設定欄で 1 回入力し、localStorage に保存して `Authorization: Bearer` で送ります。`/health` 以外は必須です。
 - **Private Network Access / Local Network Access 対応**: プリフライトに `Access-Control-Allow-Private-Network: true` を返します。Chrome の新しいバージョンでは初回に許可ダイアログが出る想定です（未検証）。
-- **CLI の権限**: cwd を `chat/workspace` に固定し、Claude は `--tools "Read,Skill"`、Codex は `--sandbox read-only`。ファイル書き込みやシェル実行はさせません。
+- **Claude の権限**: `--tools "Read,Skill"` に限定し、書き込み・シェル実行のツールを与えません。cwd 外の Read は非対話モードでは許可待ちにならず拒否される想定です（V9 で確認）。
+- **Codex の権限**: `--sandbox read-only` で、モデルが生成したシェルコマンドを書き込み不可・ネットワーク不可の Seatbelt 内で実行します。シェル実行自体は起こり得るため、保証するのは「ディスクへの書き込みと外部通信をしない」ことに限ります。読み取りは cwd 外にも及ぶ可能性があるので、Codex を使う場合はその旨をドックの AI 選択欄に注記します。シェルツール自体を外す設定があるかは V10 で確認し、あれば採用します。
 - **ジョブ制限**: 同時 1 ジョブ、プロンプト上限 8,000 文字、タイムアウト 180 秒。超過時はプロセスを kill して `done` に `error` を載せます。
 - **ログ**: プロンプト本文はログに残しません（stderr にはジョブ id と所要時間のみ）。
 
@@ -211,11 +247,11 @@ codex exec --json -m gpt-5.5 \
 - 骨子は次のとおりです。
   - 役割: DEX COMPASS（Pokémon HOME 全国図鑑管理ツール）に付属するポケモン相談役。日本語で答える。
   - 知識の扱い: 入手方法・進化条件は作品ごとに差があること、知識の確認日を明示すること、断定できないときはそう書くこと。
-  - 収集状況の参照ルール: 「捕まえた／未所持／HOME に送った／登録／Living Dex／大切な個体」に関する質問のときだけ `dex-compass-collection` skill を使う。それ以外では読まない（R12）。
+  - 収集状況の参照ルール: 「捕まえた／未所持／HOME に送った／登録／Living Dex／大切な個体」に関する質問のときだけ `dex-compass-collection` skill を使う。それ以外では読まない（R12）。収集状況に答えるときは、同じスレッドで以前読んだ内容を使い回さず、毎回読み直してから答える。発言の先頭に付く「収集状況の版」が前回と違うときは特にそうする（§9.2）。
   - 出力形式: 短く、必要なら箇条書き。コードブロックは使わない。
   - 現在の画面: ユーザー発言の先頭に付く「現在の画面: …」行を文脈として使う。
 
-### 6.2 収集状況 skill（`chat/workspace/.claude/skills/dex-compass-collection/SKILL.md`）
+### 6.2 収集状況 skill（`chat/skills/dex-compass-collection/SKILL.md`）
 
 skill の frontmatter（`name`、`description`）だけが常時コンテキストに入り、本文とデータは呼び出されたときだけ読まれます。これで R11 と R12 を両立します。
 
@@ -227,26 +263,47 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
 
 # 収集状況の調べ方
 
-1. `data/collection.md` を Read する。先頭に集計（捕獲数・登録数・残り数・所持ソフト・DLC）、
+1. `data/collection.md` を Read する。先頭に版（contextId）・保存元・生成時刻、集計（捕獲数・登録数・残り数・所持ソフト・DLC）、
    その下に 1,025 行の表（No. / 名前 / 世代 / 分類 / 捕獲 / 送信 / 登録 / Living / 大切 / フォルム）がある。
+   この会話で以前に読んでいても、答える前に読み直す。
 2. 特定のポケモンを聞かれたら表の該当行を答える。「未所持一覧」は捕獲列が空の行を数える。
 3. 生データが必要なときだけ `data/state.json` を読む（`lib/state.ts` と同じ形）。
 4. 表にないことは「DEX COMPASS には記録がない」と答える。推測で埋めない。
 ```
 
-- `data/collection.md` と `data/state.json` はブラウザが `PUT /context` で送った内容からブリッジが生成します（gitignore）。表の生成は `lib/dex.ts` の `pokemon` 一覧を持つブラウザ側で行い（`lib/chat/context.ts`）、ブリッジは受け取った文字列を書くだけにします。ブリッジで TypeScript のデータ加工を再実装しないためです。
-- 送信タイミングは、`DexApp` の読込完了時と、`State` 変更後 2 秒のデバウンスです。内容が前回と同じなら送りません。
-- Codex 用の skill 配置先は Codex 側の探索場所に合わせてシンボリックリンクを置きます（`~/.codex/skills` が存在することは確認済み。`workspace` 配下の探索パスは未検証、§13）。
+- `data/collection.md` と `data/state.json` はブラウザが `PUT /contexts` で送った内容からブリッジがスナップショットとして保存します（§5.4）。表の生成は `lib/dex.ts` の `pokemon` 一覧を持つブラウザ側で行い（`lib/chat/context.ts`）、ブリッジは受け取った文字列を書くだけにします。ブリッジで TypeScript のデータ加工を再実装しないためです。
+- ジョブの cwd からは `data/` がそのジョブのスナップショットを指します（§5.5）。skill 本文はパスを固定して書けます。
+- Codex 用の skill 配置先は Codex 側の探索場所に合わせてジョブ cwd にリンクを置きます（`~/.codex/skills` が存在することは確認済み。cwd 配下の探索パスは未検証、V4）。
 
-### 6.3 ページコンテキスト
+### 6.3 同期のタイミング（レビュー指摘 1）
 
-「今見ているページ」は小さいので、システムプロンプトではなく各発言の先頭に 1 行付けます。
+ブラウザ側 `lib/chat/context.ts` は次の 2 つの値を持ちます。
+
+- `synced`: 最後にブリッジが受理した `{ serialized: string, contextId: string }`
+- `pending`: 現在の `State` を直列化した文字列（`DexApp` の保存 effect から更新）
+
+同期は 2 系統です。
+
+1. **背景同期**: `pending` が変わってから 2 秒後に `PUT /contexts`。通常の操作中はこれで追随します。
+2. **送信直前の同期**: 送信ボタンを押した時点で `pending !== synced.serialized` なら、デバウンスを待たずに `PUT /contexts` を発行し、応答の `contextId` を受け取ってからメッセージを POST します。この間は入力欄を「収集状況を同期中…」にします。同期に失敗したら送信せず、エラーと再試行ボタンを出します。収集状況なしで送る選択肢は設けません（古い記録で答えるより、送れないほうが分かりやすいため）。
+
+`State` の読込が終わる前（`loaded === false`）は送信ボタンを無効にします。単一 HTML 版とサイト版はそれぞれ別の `source` と `State` を持つので、別々の `contextId` になり、互いに上書きしません。
+
+
+
+### 6.4 発言ヘッダー（画面コンテキストと収集状況の版）
+
+「今見ているページ」と「どの版の収集状況か」は小さいので、システムプロンプトではなく各発言の先頭に付けます。ブリッジが `POST /threads/:id/messages` の内容から組み立てます。
 
 ```
 現在の画面: ポケモン詳細 No.25 ピカチュウ
+収集状況の版: 3f9a1c2b7d4e5f60（サイト版、2026-09-12 10:32 時点）
+収集状況は前回の質問から更新されています。収集状況に関する質問なら必ず読み直してください。
 ---
 ピカチュウの色違いはどこで出やすい？
 ```
+
+3 行目は、このスレッドの直前のターンと `contextId` が異なるときだけ付けます（§9.2）。
 
 `view`（dex / missing / legends / routes / bank / living / settings）と `pokemonId` をブラウザから送り、ブリッジが `data/pokemon.json` を読まずに済むよう名前もブラウザ側で付けて送ります。
 
@@ -255,7 +312,7 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
 ### 7.1 配置
 
 - `components/chat/chat-dock.tsx`（`'use client'`）を `app/layout.tsx` の `<body>` 直下、`{children}` の後に置きます。`standalone/main.tsx` も同様に `<App />` の横に置きます。
-- `DexApp` とは props でつながず、収集状態の共有は `lib/chat/context.ts` の `syncCollection(state)` を `DexApp` の保存 effect（`components/dex-app.tsx:213` 付近）から呼ぶ形にします。ページコンテキストは `DexApp` がマウント時に `setPageContext({ view, id })` を呼び、モジュールスコープの store に置きます。
+- `DexApp` とは props でつながず、収集状態の共有は `lib/chat/context.ts` の `syncCollection(state, loaded)` を `DexApp` の保存 effect（`components/dex-app.tsx:213` 付近）から呼ぶ形にします（§6.3）。ページコンテキストは `DexApp` がマウント時に `setPageContext({ view, id })` を呼び、モジュールスコープの store に置きます。
 - モジュール構成:
   - `components/chat/chat-dock.tsx`: 枠、開閉、幅、ヘッダー（AI・モデル選択、スレッド一覧ボタン、新規）
   - `components/chat/chat-thread.tsx`: メッセージ一覧。`components/ui/message.tsx` と `message-scroller.tsx` を使う
@@ -276,15 +333,21 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
 
 ### 7.3 ページ遷移をまたぐ復元（R7）
 
-左ナビはフルページ遷移なので、次をすべて localStorage（キー `dex-compass-chat-v1`）に持ち、マウント時に復元します。
+左ナビはフルページ遷移なので、次を localStorage（キー `dex-compass-chat-v1`）に持ち、マウント時に復元します。
 
 - 開閉状態、幅
 - 選択中の AI とモデル
 - 表示中スレッド id
 - 入力途中の文（入力のたびに保存）
-- 生成中のジョブ id と受信済み最終イベント id
+- 生成中のジョブ id
 
-生成中に遷移した場合、ブリッジ側のジョブは止まらずに進みます。次のページでマウントした `ChatDock` は保存済みジョブ id で `GET /jobs/:id/events` に `Last-Event-ID` 付きで再接続し、続きから描画します。ジョブが既に終わっていれば残りを一括で受け取ります。
+生成途中の本文は localStorage に持ちません（レビュー指摘 2）。本文の正本はブリッジのジョブとスレッドファイルにあり、復元は次の順で行います。
+
+1. マウント時に `GET /threads/:id` でスレッドを取得し、メッセージ一覧を描画する。生成中のメッセージは受信済み本文（ブリッジが 500 ms ごとに書き出したもの）と `jobId` を含む。
+2. `jobId` があれば `GET /jobs/:id/events` に接続する。最初の `snapshot.content` でそのメッセージの本文を置き換え（1 で得た本文より新しい）、以降の `delta` を追記する。
+3. 404 なら（ブリッジ再起動）、1 で得た本文を残したままメッセージを `error` 表示にする。
+
+ブリッジ側のジョブはページ遷移で止まりません。遷移中に届いた分は `snapshot` に含まれるので、取りこぼしや二重表示は起きません。
 
 `storage` イベントで他タブの変更も拾うので、同じサイトを複数のブラウザタブで開いても表示中スレッドが揃います。
 
@@ -307,6 +370,7 @@ type Thread = {
   provider: 'claude' | 'codex';
   model: string;
   cliSessionId?: string;      // claude の session_id / codex の thread id
+  lastContextId?: string;     // 直前のターンで使った収集状況の版（§9.2 の比較用）
   createdAt: string;          // ISO 8601
   updatedAt: string;
   messages: Message[];
@@ -315,12 +379,31 @@ type Thread = {
 type Message = {
   id: string;
   role: 'user' | 'assistant';
-  content: string;
+  content: string;            // assistant が streaming 中は受信済み本文
   status: 'done' | 'streaming' | 'cancelled' | 'error';
   error?: string;
+  jobId?: string;             // streaming 中の assistant のみ
+  contextId?: string;         // user のみ。この発言が参照する収集状況の版
+  page?: { view: string; pokemonId?: number; label: string };  // user のみ
   provider?: string;          // assistant のみ。途中で切り替えた場合の記録
   model?: string;
   usage?: { inputTokens?: number; outputTokens?: number };
+  createdAt: string;
+};
+
+type Job = {                  // ブリッジのメモリ上。完了後 10 分で破棄
+  id: string;
+  threadId: string;
+  messageId: string;
+  contextId: string;
+  status: 'streaming' | 'done' | 'cancelled' | 'error';
+  content: string;            // 受信済み本文の全体
+  startedAt: string;
+};
+
+type ContextSnapshot = {      // chat/workspace/contexts/<contextId>/meta.json
+  contextId: string;
+  source: 'site' | 'dev' | 'standalone';
   createdAt: string;
 };
 ```
@@ -328,6 +411,8 @@ type Message = {
 保存先は `chat/workspace/history/<threadId>.json`（1 スレッド 1 ファイル）です。D1 に置かない理由は、AI がローカルにしかいないため、履歴もローカルに置けば同じ Mac で開いたサイト版・開発版・単一 HTML 版のすべてから同じ履歴が見えるからです。別の Mac から見た履歴は共有されません。この制約は設定画面の注記に書きます。
 
 ## 9. マルチターンと履歴
+
+### 9.1 セッション継続と転写
 
 - 1 スレッド内では、まず CLI のセッション継続（Claude `--resume`、Codex `exec resume`）を使います。CLI 側が文脈を持つため、毎回の送信量が増えません。
 - 継続に失敗したとき（セッションが期限切れ、AI やモデルをスレッド途中で切り替えたとき）は、直近 20 メッセージまたは 12,000 文字までの転写を次の形でプロンプト先頭に付けて送り、新しいセッション id を控え直します。
@@ -338,12 +423,25 @@ type Message = {
 [assistant] …
 ---
 現在の画面: …
+収集状況の版: …
 ---
 （今回の発言）
 ```
 
 - AI とモデルはスレッド途中でも切り替えられます。切り替え後の最初の発言は転写方式になります。
 - 履歴一覧は更新日時順です。削除は確認ダイアログ（`alert-dialog.tsx`）を挟みます。
+
+### 9.2 継続セッションでの収集状況の扱い（レビュー指摘 3）
+
+skill で読んだ `collection.md` の内容は、継続中の CLI セッションの文脈に残ります。ここで「捕獲状態を変えてから同じ質問をする」と、古い内容で答える可能性があります。次の 3 段で防ぎます。
+
+1. **版を毎ターン渡す**: 発言ヘッダーに `収集状況の版: <contextId>` を必ず入れます（§6.4）。
+2. **変更時は再読込を明示する**: ブリッジは `thread.lastContextId` と今回の `contextId` を比べ、異なれば「収集状況は前回の質問から更新されています。収集状況に関する質問なら必ず読み直してください」の行を付けます。ジョブ cwd の `data/` は新しいスナップショットを指しているので、読み直せば新しい内容になります。
+3. **システムプロンプトでも毎回読み直しを指示する**: 収集状況の質問では以前読んだ内容を使い回さない、と書きます（§6.1）。2 は指示の強調であり、1 と 3 だけでも成り立つ設計にします。
+
+それでも古い内容で答える余地は残ります（指示に従わない場合）。これを許容しない運用にしたい場合は、`contextId` が変わったターンでは `--resume` を使わず転写方式で新しいセッションを始める設定（`config.json` の `freshSessionOnContextChange: true`）を用意します。既定は `false` にし、V11 で古い回答の頻度を計ってから既定を決めます。
+
+R12 の解釈は次のとおりです。ブリッジやシステムプロンプトから収集状況を毎ターン注入することはしません。AI が skill で読んだ結果がそのスレッドの CLI セッションに残ることは許容します。スレッドを新規作成すれば文脈は空になります。
 
 ## 10. ストリーミングの詳細
 
@@ -363,6 +461,8 @@ type Message = {
   "allowNullOrigin": false,
   "maxConcurrentJobs": 1,
   "timeoutMs": 180000,
+  "freshSessionOnContextChange": false,
+  "contextRetention": 30,
   "providers": {
     "claude": {
       "label": "Claude",
@@ -391,16 +491,16 @@ type Message = {
 フェーズ 1（この設計の主要部分）
 
 1. `chat/` ディレクトリ、`config.json`、`prompts/system.md`、`SKILL.md`、`.gitignore` 追記
-2. ブリッジ本体（`/health`、`/context`、`/threads*`、`/jobs*`、Origin・トークン検査、1 並列制限）
+2. ブリッジ本体（`/health`、`/contexts`、`/threads*`、`/jobs*`、Origin・トークン検査、1 並列制限、ジョブごとの cwd）
 3. Claude アダプタ（stream-json パース、`--resume`、転写フォールバック）
-4. `lib/chat/context.ts`（`collection.md` 生成、`DexApp` からの同期）
+4. `lib/chat/context.ts`（`collection.md` 生成、背景同期と送信直前同期、`contextId` の保持）
 5. `ChatDock` 一式、`app/layout.tsx` と `standalone/main.tsx` への組み込み
-6. 履歴 UI、ページ遷移後の再接続
+6. 履歴 UI、ページ遷移後の `snapshot` による復元
 7. README に起動手順と制約（ローカル限定、履歴は Mac ごと）を追記
 
 フェーズ 2
 
-1. Codex アダプタ（skill 配置先と delta の有無を検証してから）
+1. Codex アダプタ（skill 配置先、delta の有無、シェルツールを外せるかを検証してから。§5.6）
 2. モバイル（Sheet）対応の調整
 3. 使用トークン表示、キャンセル時の中途保存
 
@@ -420,14 +520,17 @@ type Message = {
 | V3 | `codex exec --json` にトークン単位の delta イベントがあるか | §5.3, §10 | 実行して JSONL を目視 |
 | V4 | Codex が cwd 配下のどこから skill を探すか（`.codex/skills`、`.agents/skills` など） | §6.2 | Codex のドキュメントと実行で確認 |
 | V5 | `codex exec --ignore-user-config` を付けると `~/.codex/auth.json` の認証も無視されるか | §5.3 | 実行して確認。無視されるなら付けない |
-| V6 | `https://` のサイトから `http://127.0.0.1` への fetch が Safari で通るか。Chrome の Local Network Access 許可ダイアログの挙動 | §5.4 | 各ブラウザで `/health` を叩く |
-| V7 | `claude -p` の初回応答時間（ツール無効・haiku）と、skill 参照時の追加時間 | §4 | 10 回計測して中央値を README に書く |
-| V8 | Cloudflare Access 配下のページから 127.0.0.1 への fetch に Access の Cookie や CSP が干渉しないか | §5.4 | デプロイ後に確認 |
+| V6 | `https://` のサイトから `http://127.0.0.1` への fetch が Safari で通るか。Chrome の Local Network Access 許可ダイアログの挙動 | §5.6 | 各ブラウザで `/health` を叩く |
+| V7 | `claude -p` の初回応答時間（ツール無効・haiku）と、skill 参照時の追加時間（毎回読み直す前提） | §4, §9.2 | 10 回計測して中央値を README に書く |
+| V8 | Cloudflare Access 配下のページから 127.0.0.1 への fetch に Access の Cookie や CSP が干渉しないか | §5.6 | デプロイ後に確認 |
+| V9 | `claude -p --tools "Read,Skill"` で cwd 外のファイルを Read しようとしたとき、非対話モードで拒否されるか。シンボリックリンク先（`chat/workspace/contexts`）は cwd 内扱いになるか | §5.5, §5.6 | ジョブ cwd から `../../contexts/…` と `~/.zshrc` を読ませて結果を見る |
+| V10 | Codex でシェルツール自体を無効化する設定（`-c` のキーや features）があるか。無ければ `--sandbox read-only` で書き込み・ネットワークが実際に遮断されるか | §5.6 | `codex exec --help` と設定リファレンス、`touch` と `curl` を試す |
+| V11 | 継続セッション（`--resume`）で、収集状況を更新してから同じ質問をしたとき、§9.2 の 1〜3 だけで新しい内容を答えるか | §9.2 | 10 回試行して古い回答の回数を記録し、`freshSessionOnContextChange` の既定を決める |
 
 ## 14. テスト方針
 
-- ブリッジ: `scripts/fake-claude.mjs`（stream-json を固定間隔で吐く偽 CLI）を `PATH` の先頭に置いた状態で、`/threads` → `/messages` → `/jobs/:id/events` の流れ、`Last-Event-ID` 再送、キャンセル、Origin 拒否、トークン不一致、タイムアウトを `node --test` で確認します。
-- フロント: 既存の `pnpm test` は engine 確認のみなので、`ChatDock` は手動確認のチェックリストを README に置きます（開閉、幅、ページ遷移中の復元、履歴削除、未接続表示、モバイル幅）。
+- ブリッジ: `scripts/fake-claude.mjs`（stream-json を固定間隔で吐く偽 CLI）を `PATH` の先頭に置いた状態で、`/contexts` → `/threads` → `/messages` → `/jobs/:id/events` の流れ、途中接続時の `snapshot` に受信済み本文が全部入ること、未登録 `contextId` の 409、ジョブ cwd の `data/` が指定のスナップショットを指すこと、キャンセル、Origin 拒否、トークン不一致、タイムアウトを `node --test` で確認します。
+- フロント: 既存の `pnpm test` は engine 確認のみなので、`ChatDock` は手動確認のチェックリストを README に置きます（開閉、幅、生成中にページ遷移して本文が欠けないこと、チェック直後の質問が新しい収集状況を反映すること、サイト版と単一 HTML 版を同時に開いても互いの記録を上書きしないこと、履歴削除、未接続表示、モバイル幅）。
 - 型と lint: `corepack pnpm exec tsc --noEmit`、`corepack pnpm lint`、`corepack pnpm build`、`corepack pnpm build:html` を通します。
 
 ## 15. 追加・変更ファイル一覧
@@ -435,9 +538,8 @@ type Message = {
 追加
 
 - `chat/config.json`、`chat/prompts/system.md`
-- `chat/workspace/CLAUDE.md`、`chat/workspace/AGENTS.md`（シンボリックリンク）
-- `chat/workspace/.claude/skills/dex-compass-collection/SKILL.md`
-- `chat/bridge/server.mjs`、`jobs.mjs`、`threads.mjs`、`context.mjs`、`providers/claude.mjs`、`providers/codex.mjs`
+- `chat/skills/dex-compass-collection/SKILL.md`
+- `chat/bridge/server.mjs`、`jobs.mjs`、`threads.mjs`、`contexts.mjs`、`providers/claude.mjs`、`providers/codex.mjs`
 - `components/chat/chat-dock.tsx`、`chat-thread.tsx`、`chat-composer.tsx`、`chat-threads.tsx`、`chat-setup.tsx`
 - `lib/chat/client.ts`、`store.ts`、`context.ts`
 - `scripts/fake-claude.mjs`、`chat/bridge/*.test.mjs`
@@ -450,5 +552,5 @@ type Message = {
 - `components/dex-app.tsx`: `syncCollection` と `setPageContext` の呼び出し（各 1 行程度）
 - `app/globals.css`: ドックのスタイル、`body` の右パディング
 - `package.json`: `chat` スクリプト、`marked`、`dompurify` の追加
-- `.gitignore`: `chat/workspace/data/`、`chat/workspace/history/`、`chat/workspace/.token`
+- `.gitignore`: `chat/workspace/`（生成物のみのため丸ごと）
 - `README.md`: 起動手順と制約
