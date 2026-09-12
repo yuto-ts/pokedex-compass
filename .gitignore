@@ -37,3 +37,6 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# chat bridge (snapshots, per-job cwd, history, token)
+/chat/workspace/

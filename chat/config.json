@@ -1,0 +1,33 @@
+{
+  "port": 47117,
+  "allowedOrigins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+  "extraBindHosts": [],
+  "allowNullOrigin": false,
+  "maxConcurrentJobs": 1,
+  "timeoutMs": 180000,
+  "freshSessionOnContextChange": false,
+  "contextRetention": 30,
+  "providers": {
+    "claude": {
+      "label": "Claude",
+      "default": "claude-haiku-4-5-20251001",
+      "models": [
+        "claude-haiku-4-5-20251001",
+        "claude-sonnet-5",
+        "claude-opus-5",
+        "claude-fable-5-1"
+      ]
+    },
+    "codex": {
+      "label": "ChatGPT (Codex CLI)",
+      "default": "gpt-5.5",
+      "models": [
+        "gpt-5.5",
+        "gpt-5.6-luna",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-6-astra"
+      ]
+    }
+  }
+}

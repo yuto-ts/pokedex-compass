@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import evolutionData from '@/data/evolution.json';
 import { pageHref } from '@/lib/href';
 import { storage, StorageError } from '@/lib/storage';
+import { setPageContext, syncCollection } from '@/lib/chat/context';
 const evolutions: Record<string, { gameGroup: string; text: string }[]> =
   evolutionData;
 import {
@@ -189,6 +190,7 @@ export default function DexApp({
     [layout, setLayout] = useState('grid'),
     [page, setPage] = useState(1),
     [advanced, setAdvanced] = useState(false);
+  useEffect(() => setPageContext({ view, id }), [view, id]);
   useEffect(() => {
     let active = true;
     Promise.resolve()
@@ -211,6 +213,7 @@ export default function DexApp({
     };
   }, []);
   useEffect(() => {
+    syncCollection(s, loaded);
     if (!loaded) return;
     let active = true;
     Promise.resolve()
@@ -311,6 +314,27 @@ export default function DexApp({
   const pages = Math.max(1, Math.ceil(result.length / 24));
   const current = Math.min(page, pages),
     shown = result.slice((current - 1) * 24, current * 24);
+  const listTop = useRef<HTMLDivElement>(null);
+  // React commits the page change before the next frame, so the new cards are
+  // in the DOM by the time these run.
+  const goToPage = (n: number) => {
+    setPage(n);
+    requestAnimationFrame(() =>
+      listTop.current?.scrollIntoView({ block: 'start' }),
+    );
+  };
+  const jumpTo = (pid: number) => {
+    const index = result.findIndex((p) => p.id === pid);
+    if (index < 0) return;
+    setPage(Math.floor(index / 24) + 1);
+    requestAnimationFrame(() => {
+      // Card and table layouts both carry the id; take the visible one.
+      const target = [
+        ...document.querySelectorAll<HTMLElement>(`[data-pokemon="${pid}"]`),
+      ].find((el) => el.offsetParent !== null);
+      (target ?? listTop.current)?.scrollIntoView({ block: 'start' });
+    });
+  };
   const plan = useMemo(() => optimize(s), [s]);
   const title = id
     ? pokemon.find((p) => p.id === id)?.name
@@ -371,6 +395,7 @@ export default function DexApp({
           'pokemon-card ' + (s.progress[p.id]?.caught ? 'is-caught' : '')
         }
         key={p.id}
+        data-pokemon={p.id}
       >
         <div className="card-top">
           <span className="dex-no">No. {String(p.id).padStart(4, '0')}</span>
@@ -708,35 +733,59 @@ export default function DexApp({
             {view === 'missing' && !id && (
               <article className="panel">
                 <h2>残りの内訳</h2>
+                <p className="muted">
+                  タップすると、その区分で未捕獲の先頭のポケモンへ移動します。
+                </p>
                 <div className="remaining-grid">
-                  {Array.from({ length: 9 }, (_, i) => (
-                    <div key={i}>
-                      第{i + 1}世代{' '}
-                      <b>
-                        {
-                          pokemon.filter(
-                            (p) => p.gen === i + 1 && !s.progress[p.id]?.caught,
-                          ).length
-                        }
-                        匹
-                      </b>
-                    </div>
-                  ))}
-                  {['通常', '準伝説', '伝説', '幻', 'ウルトラビースト'].map(
-                    (c) => (
-                      <div key={c}>
-                        {c}
+                  {Array.from({ length: 9 }, (_, i) => {
+                    const gen = i + 1;
+                    const target = result.find((p) => p.gen === gen);
+                    return (
+                      <button
+                        key={gen}
+                        type="button"
+                        disabled={!target}
+                        onClick={() => {
+                          if (target) jumpTo(target.id);
+                        }}
+                      >
+                        第{gen}世代{' '}
                         <b>
                           {
                             pokemon.filter(
-                              (p) =>
-                                p.category === c && !s.progress[p.id]?.caught,
+                              (p) => p.gen === gen && !s.progress[p.id]?.caught,
                             ).length
                           }
                           匹
                         </b>
-                      </div>
-                    ),
+                      </button>
+                    );
+                  })}
+                  {['通常', '準伝説', '伝説', '幻', 'ウルトラビースト'].map(
+                    (c) => {
+                      const target = result.find((p) => p.category === c);
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          disabled={!target}
+                          onClick={() => {
+                            if (target) jumpTo(target.id);
+                          }}
+                        >
+                          {c}
+                          <b>
+                            {
+                              pokemon.filter(
+                                (p) =>
+                                  p.category === c && !s.progress[p.id]?.caught,
+                              ).length
+                            }
+                            匹
+                          </b>
+                        </button>
+                      );
+                    },
                   )}
                 </div>
               </article>
@@ -1207,7 +1256,7 @@ export default function DexApp({
                     </div>
                   )}
                 </div>
-                <div className="results-heading">
+                <div className="results-heading" ref={listTop}>
                   <span>
                     <b>{result.length.toLocaleString()}</b>匹{' '}
                     {q && `「${q}」の検索結果`}
@@ -1291,6 +1340,7 @@ export default function DexApp({
                               return (
                                 <TableRow
                                   key={p.id}
+                                  data-pokemon={p.id}
                                   className={
                                     s.progress[p.id]?.caught ? 'is-caught' : ''
                                   }
@@ -1350,7 +1400,7 @@ export default function DexApp({
                     <PaginationItem>
                       <button
                         disabled={current === 1}
-                        onClick={() => setPage(current - 1)}
+                        onClick={() => goToPage(current - 1)}
                         aria-label="前のページ"
                       >
                         <ChevronLeft size={16} />
@@ -1364,7 +1414,7 @@ export default function DexApp({
                     <PaginationItem>
                       <button
                         disabled={current === pages}
-                        onClick={() => setPage(current + 1)}
+                        onClick={() => goToPage(current + 1)}
                         aria-label="次のページ"
                       >
                         <ChevronRight size={16} />

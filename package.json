@@ -13,7 +13,8 @@
     "deploy": "vinext build && wrangler deploy --config dist/server/wrangler.json",
     "lint": "oxlint",
     "format": "oxfmt",
-    "test": "node scripts/check-engine.mjs"
+    "test": "node scripts/check-engine.mjs && node --test 'chat/bridge/*.test.mjs'",
+    "chat": "node scripts/build-chat-reference.mjs && node chat/bridge/server.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
@@ -22,10 +23,12 @@
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
     "date-fns": "4.1.0",
+    "dompurify": "3.4.15",
     "embla-carousel-react": "8.5.2",
     "input-otp": "1.4.2",
     "jose": "6.2.12",
     "lucide-react": "1.31.0",
+    "marked": "18.0.12",
     "react": "19.2.6",
     "react-day-picker": "9.8.1",
     "react-dom": "19.2.6",

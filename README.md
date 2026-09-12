@@ -5,7 +5,7 @@
 ## 開発
 
 パッケージマネージャーは **pnpm 12.3.4**。`corepack pnpm install`、`corepack pnpm dev`で起動。
-`corepack pnpm test`、`corepack pnpm exec tsc --noEmit`、`corepack pnpm build`で検証。
+`corepack pnpm test`、`corepack pnpm exec tsc --noEmit`、`corepack pnpm lint`、`corepack pnpm build`、`corepack pnpm build:html`で検証。`test`は図鑑エンジンの確認に加えて、チャットブリッジのテスト（`chat/bridge/*.test.mjs`、偽CLI `scripts/fake-claude.mjs`を使用）を実行します。
 
 React / TypeScript / Tailwind CSS / shadcn/ui。Sites標準のVinextを利用し、Next.js App Router互換APIで実装しています。Next.jsそのものの実行環境ではありません。
 
@@ -55,9 +55,61 @@ Switch作品の入手場所：Serebii各種ページのLocations表。`data/mode
 
 破損データは上書きせずエラーを表示。保存不能を成功として扱いません。
 
+## ポケモン相談チャット（右サイドバー）
+
+全ページの右端にチャット欄があり、この Mac で動く `claude` CLI（Claude のサブスクリプション）に質問できます。API キーは使いません。設計は`docs/chat-sidebar.md`にまとめています。
+
+起動手順:
+
+1. `claude` にログイン済みであることを確認する（`claude -p "hi"` が応答すれば可）。
+2. リポジトリで `corepack pnpm chat` を実行します。ブリッジが `http://127.0.0.1:47117` で待ち受け、接続トークンを表示します（`chat/workspace/.token` にも保存）。
+3. サイト右端の「チャット」を開き、接続トークンを1回だけ入力します。トークンはそのブラウザのlocalStorageに保存されます。
+4. https のサイト版では、最初の接続時にChromeの「ローカル ネットワークへのアクセス」ダイアログが出るので「許可」を押します。
+
+- システムプロンプトは`chat/prompts/system.md`、skillは`chat/skills/dex-compass-collection/`（ユーザーの記録）と`chat/skills/dex-compass-guide/`（入手方法・ルート・Bank・サイト説明）です。編集は次の質問から反映され、再起動は不要です。
+- 回答の書き方は`chat/prompts/system.md`の「読み手の前提」で調整します。既定では、シリーズの基本を知っている読み手向けに、基本の説明を省いて手順と注意点から書くよう指示しています。
+- AIが読めるのは、収集状況（`data/collection.md`）に加えて、おすすめ攻略ルート（`data/routes.md`）、Bank終了対策（`data/bank.md`）、作品別の入手方法・進化条件（`reference/species/<4桁のNo>.md`）、サイトの説明（`reference/site.md`）です。`reference/`は`corepack pnpm chat`が起動前に`scripts/build-chat-reference.mjs`で生成します（元データが変わったときだけ作り直し、約4MB）。
+- ポート・許可Origin・モデル一覧は`chat/config.json`にあります。サイト版のドメインは`allowedOrigins`に追加してください。単一HTML版（`file://`）から使う場合は`allowNullOrigin`を`true`にします。
+- 収集状況はブラウザがブリッジへ送った版（`chat/workspace/contexts/`）をAIがskillで読みます。チェック直後の質問は、送信前に最新の状態を同期してから送ります。
+
+同じMac以外（iPhoneなど）から使う場合:
+
+ブリッジは既定で`127.0.0.1`だけを待ち受けます。同じtailnet（Tailscale）のiPhoneなどから使うときは、待ち受けアドレスと許可Originを足して起動します。
+
+```bash
+CHAT_BRIDGE_HOSTS=$(tailscale ip -4) CHAT_ALLOWED_ORIGINS=http://$(tailscale ip -4):3000 corepack pnpm chat
+```
+
+開発サーバーもそのアドレスで待ち受けさせます（`corepack pnpm dev -- -H $(tailscale ip -4)`）。あとは端末のブラウザで`http://<tailscaleのIP>:3000/`を開き、同じ接続トークンを1回入力すれば使えます。ドックはページのホストからブリッジの接続先を決めるので、設定は不要です。
+
+- 追加したアドレスの範囲（tailnet内のあなたの端末）からブリッジAPIに到達できるようになります。守りはトークン・Origin許可リスト・Host検査の3つです。
+- `0.0.0.0`では待ち受けないので、足していないネットワーク（公衆Wi-Fiなど）からは届きません。
+- 個人のアドレスをgitに入れずに済むよう、環境変数で渡す形にしています。恒久的に設定する場合は`chat/config.json`の`extraBindHosts`と`allowedOrigins`に書けます。
+- Viteのホスト検査があるため、MagicDNSの名前ではなくIPで開いてください。名前で開くには`vite.config.ts`に`server.allowedHosts`が要ります。
+
+制約:
+
+- ブリッジはこのMacで動きます。Cloudflare上のサイト版でも、チャットはブラウザと同じMac（またはtailnet越しの同じMac）のブリッジに接続します。
+- 履歴は`chat/workspace/history/`（Macごと）に保存され、別のMacとは共有されません。`chat/workspace/`はgit管理外です。
+- 対応ブラウザはChromeです。Safariは確認していません。
+- ChatGPT（Codex CLI）はフェーズ2で対応予定のため、選択肢には出ますが選べません。
+- 同時に回答を生成できるのは1件です。1回の回答は180秒で打ち切ります。
+- 質問ごとに`claude -p`を新しい作業ディレクトリで起動するため、`~/.claude/projects/`にジョブごとのセッションディレクトリが増えます。
+
+手動確認チェックリスト（`ChatDock`は自動テストがありません）:
+
+- [ ] 開閉・幅のドラッグ（320〜640px）が、ページを移動しても保たれる
+- [ ] 生成中に左ナビで別ページへ移動しても、本文が欠けず二重にもならずに続きから表示される
+- [ ] 入力途中の文がページ移動後も残る
+- [ ] 捕獲チェックを付けた直後の質問に、新しい収集状況で答える
+- [ ] サイト版と単一HTML版を同時に開いても、互いの収集状況を上書きしない（保存元が別の版になる）
+- [ ] 履歴から再開・削除（確認ダイアログあり）ができる
+- [ ] ブリッジ停止中は起動コマンドとトークン入力の案内が出ます。生成中にブリッジが止まった回答は「ブリッジが停止したため中断しました」になる
+- [ ] 640px以下では下からのシートで開く
+
 ## Cloudflareへのデプロイ
 
-`corepack pnpm run deploy`でビルドし、Worker `pokedex-compass`としてデプロイします。D1の接続先：`vite.config.ts`の`d1_databases`。
+`corepack pnpm run deploy`でビルドし、Worker `pokedex-compass`としてデプロイします。D1の接続先は`vite.config.ts`の`d1_databases`で指定します。
 
 アクセス制限：Cloudflare Access。APIはAccessが付与するJWT（`Cf-Access-Jwt-Assertion`）を`jose`で検証します。`vite.config.ts`の`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD`が未設定なら、APIはすべて403。
 ローカルの`corepack pnpm dev`では検証を省略し、D1はMiniflareのローカルDBを使用。
