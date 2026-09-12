@@ -9,12 +9,13 @@ import { pathToFileURL } from 'node:url';
 import { ContextError, createContextStore, isContextId } from './contexts.mjs';
 import { HttpError, createJobManager } from './jobs.mjs';
 import * as claude from './providers/claude.mjs';
+import * as codex from './providers/codex.mjs';
 import { createThreadStore, isThreadId } from './threads.mjs';
 
 export const API_VERSION = 1;
 const MAX_BODY = 2 * 1024 * 1024;
 const MAX_PROMPT = 8000;
-const IMPLEMENTED = { claude };
+const IMPLEMENTED = { claude, codex };
 
 const list = (value) =>
   String(value ?? '')

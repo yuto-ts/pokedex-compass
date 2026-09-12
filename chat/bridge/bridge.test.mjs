@@ -16,7 +16,12 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { contextIdOf } from './contexts.mjs';
 import { CONTEXT_CHANGED, SKILLS, buildTranscript } from './jobs.mjs';
-import { createBridge, hostAllowlist, resolveConfig } from './server.mjs';
+import {
+  createBridge,
+  findExecutable,
+  hostAllowlist,
+  resolveConfig,
+} from './server.mjs';
 import { INTERRUPTED } from './threads.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -29,26 +34,37 @@ after(async () => {
   for (const fn of cleanup.reverse()) await fn();
 });
 
-async function start({ env = {}, config = {}, retentionMs, seed } = {}) {
+async function start({
+  env = {},
+  config = {},
+  retentionMs,
+  seed,
+  binOnly,
+} = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'dex-chat-test-'));
   const workspace = join(dir, 'workspace');
   const bin = join(dir, 'bin');
   await mkdir(bin);
-  await writeFile(
-    join(bin, 'claude'),
-    `#!/bin/sh\nexec "${process.execPath}" "${join(root, 'scripts/fake-claude.mjs')}" "$@"\n`,
-  );
-  await chmod(join(bin, 'claude'), 0o755);
+  for (const cli of ['claude', 'codex']) {
+    await writeFile(
+      join(bin, cli),
+      `#!/bin/sh\nexec "${process.execPath}" "${join(root, `scripts/fake-${cli}.mjs`)}" "$@"\n`,
+    );
+    await chmod(join(bin, cli), 0o755);
+  }
   if (seed) await seed(workspace);
   const log = join(dir, 'calls.jsonl');
+  const codexLog = join(dir, 'codex-calls.jsonl');
   const bridge = await createBridge({
     root,
     workspace,
     config: { ...baseConfig, ...config },
     env: {
       ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
+      // binOnly hides the real CLIs, so /health reports what is missing.
+      PATH: binOnly ? bin : `${bin}:${process.env.PATH}`,
       FAKE_CLAUDE_LOG: log,
+      FAKE_CODEX_LOG: codexLog,
       ...env,
     },
     retentionMs,
@@ -110,12 +126,14 @@ async function start({ env = {}, config = {}, retentionMs, seed } = {}) {
     return { status: 200, list };
   }
 
-  async function calls() {
-    const text = await readFile(log, 'utf8').catch(() => '');
+  const readCalls = async (file) => {
+    const text = await readFile(file, 'utf8').catch(() => '');
     return text.trim().split('\n').filter(Boolean).map(JSON.parse);
-  }
+  };
+  const calls = () => readCalls(log);
+  const codexCalls = () => readCalls(codexLog);
 
-  return { bridge, api, events, calls, base, workspace, close };
+  return { bridge, api, events, calls, codexCalls, base, workspace, close };
 }
 
 const page = {
@@ -175,14 +193,17 @@ async function waitDone(b, jobId) {
 
 test('contexts → threads → messages → events delivers the whole answer', async () => {
   const reply = 'ピカチュウは捕獲済みです。HOME にも送信済みです。';
-  const b = await start({ env: { FAKE_CLAUDE_REPLY: reply } });
+  const b = await start({ env: { FAKE_CLAUDE_REPLY: reply }, binOnly: true });
   const health = await fetch(b.base + '/health').then((r) => r.json());
   assert.equal(health.version, 1);
   const claude = health.providers.find((p) => p.id === 'claude');
   assert.equal(claude.available, true);
   assert.ok(claude.models.includes('claude-haiku-4-5-20251001'));
+  // Both adapters exist now; only a missing CLI makes a provider unusable.
   const codex = health.providers.find((p) => p.id === 'codex');
-  assert.deepEqual([codex.available, codex.reason], [false, 'not_implemented']);
+  assert.deepEqual([codex.available, codex.reason], [true, undefined]);
+  assert.ok(codex.models.includes('gpt-5.5'));
+  assert.equal(findExecutable('codex', '/nonexistent'), undefined);
 
   const { contextId, threadId } = await setup(b);
   const started = await ask(b, threadId, contextId);
@@ -805,6 +826,103 @@ test('extra bind addresses and origins come from the config and the env', () => 
       'localhost:47117',
     ],
   );
+});
+
+test('codex answers per completed message and resumes its thread', async () => {
+  const b = await start({
+    env: {
+      FAKE_CODEX_MESSAGES: '確認します|ピカチュウは捕獲済みです',
+      FAKE_CODEX_TOOL: '1',
+    },
+  });
+  const ctx = (await b.api('PUT', '/contexts', snapshot())).body.contextId;
+  const created = await b.api('POST', '/threads', {
+    provider: 'codex',
+    model: 'gpt-5.5',
+  });
+  assert.equal(created.status, 201);
+  const threadId = created.body.id;
+  const first = await ask(b, threadId, ctx, 'ピカチュウは？');
+  assert.equal(first.status, 202);
+  const { list } = await b.events(first.body.jobId);
+  assert.equal(list.at(-1).data.status, 'done');
+  assert.ok(list.at(-1).data.usage.inputTokens > 0);
+  assert.deepEqual(
+    list.filter((e) => e.event === 'status').map((e) => e.data.name),
+    ['command_execution'],
+  );
+  const answer =
+    list[0].data.content +
+    list
+      .filter((e) => e.event === 'delta')
+      .map((e) => e.data.text)
+      .join('');
+  // Codex has no token-level delta, so each message arrives whole (V3).
+  assert.equal(answer, '確認します\n\nピカチュウは捕獲済みです');
+
+  const thread = (await b.api('GET', `/threads/${threadId}`)).body;
+  assert.equal(thread.provider, 'codex');
+  assert.ok(thread.cliSessionId);
+  await waitDone(b, (await ask(b, threadId, ctx, '次は？')).body.jobId);
+
+  const [firstCall, secondCall] = await b.codexCalls();
+  assert.deepEqual(firstCall.args.slice(0, 2), ['exec', '--json']);
+  for (const flag of [
+    '--sandbox',
+    'read-only',
+    '--skip-git-repo-check',
+    '--ignore-user-config',
+  ])
+    assert.ok(firstCall.args.includes(flag), flag);
+  assert.equal(firstCall.args.at(-1), '-');
+  assert.equal(firstCall.args[firstCall.args.indexOf('-m') + 1], 'gpt-5.5');
+  // --add-dir would grant write access in Codex, so it is never passed (§5.6).
+  assert.ok(!firstCall.args.includes('--add-dir'));
+  assert.equal(
+    await realpath(firstCall.cwd),
+    await realpath(join(b.workspace, 'jobs', first.body.jobId)),
+  );
+  assert.ok(firstCall.stdin.includes('現在の画面: '));
+
+  assert.deepEqual(secondCall.args.slice(0, 3), ['exec', 'resume', '--json']);
+  assert.equal(
+    secondCall.args[secondCall.args.indexOf('-c') + 1],
+    'sandbox_mode="read-only"',
+  );
+  assert.equal(secondCall.args.at(-2), thread.cliSessionId);
+  assert.ok(!secondCall.stdin.includes('これまでの会話'));
+});
+
+test('a lost codex session falls back to the transcript', async () => {
+  const b = await start({
+    env: { FAKE_CODEX_MESSAGES: '一回目', FAKE_CODEX_FAIL_RESUME: '1' },
+  });
+  const ctx = (await b.api('PUT', '/contexts', snapshot())).body.contextId;
+  const threadId = (
+    await b.api('POST', '/threads', { provider: 'codex', model: 'gpt-5.5' })
+  ).body.id;
+  await waitDone(b, (await ask(b, threadId, ctx, '最初')).body.jobId);
+  const job = await waitDone(
+    b,
+    (await ask(b, threadId, ctx, '二回目')).body.jobId,
+  );
+  assert.equal(job.body.status, 'done');
+  const [, resumed, fresh] = await b.codexCalls();
+  assert.ok(resumed.args.includes('resume'));
+  assert.ok(!fresh.args.includes('resume'));
+  assert.ok(fresh.stdin.startsWith('これまでの会話（古い順）:\n[user] 最初'));
+});
+
+test('a codex error without text becomes status error', async () => {
+  const b = await start({ env: { FAKE_CODEX_ERROR: 'usage limit reached' } });
+  const ctx = (await b.api('PUT', '/contexts', snapshot())).body.contextId;
+  const threadId = (
+    await b.api('POST', '/threads', { provider: 'codex', model: 'gpt-5.5' })
+  ).body.id;
+  const job = await waitDone(b, (await ask(b, threadId, ctx)).body.jobId);
+  assert.equal(job.body.status, 'error');
+  const m = (await b.api('GET', `/threads/${threadId}`)).body.messages[1];
+  assert.equal(m.error, 'usage limit reached');
 });
 
 test('transcript keeps the newest messages within the limits', () => {

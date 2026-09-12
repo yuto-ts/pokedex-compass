@@ -57,11 +57,11 @@ Switch作品の入手場所：Serebii各種ページのLocations表。`data/mode
 
 ## ポケモン相談チャット（右サイドバー）
 
-全ページの右端にチャット欄があり、この Mac で動く `claude` CLI（Claude のサブスクリプション）に質問できます。API キーは使いません。設計は`docs/chat-sidebar.md`にまとめています。
+全ページの右端にチャット欄があり、この Mac で動く `claude` CLI（Claude のサブスクリプション）か `codex` CLI（ChatGPT のサブスクリプション）に質問できます。API キーは使いません。設計は`docs/chat-sidebar.md`にまとめています。
 
 起動手順:
 
-1. `claude` にログイン済みであることを確認する（`claude -p "hi"` が応答すれば可）。
+1. 使う CLI にログイン済みであることを確認する（`claude -p "hi"` が応答すれば可。ChatGPT 側を使うなら `codex` も）。
 2. リポジトリで `corepack pnpm chat` を実行します。ブリッジが `http://127.0.0.1:47117` で待ち受け、接続トークンを表示します（`chat/workspace/.token` にも保存）。
 3. サイト右端の「チャット」を開き、接続トークンを1回だけ入力します。トークンはそのブラウザのlocalStorageに保存されます。
 4. https のサイト版では、最初の接続時にChromeの「ローカル ネットワークへのアクセス」ダイアログが出るので「許可」を押します。
@@ -92,7 +92,8 @@ CHAT_BRIDGE_HOSTS=$(tailscale ip -4) CHAT_ALLOWED_ORIGINS=http://$(tailscale ip 
 - ブリッジはこのMacで動きます。Cloudflare上のサイト版でも、チャットはブラウザと同じMac（またはtailnet越しの同じMac）のブリッジに接続します。
 - 履歴は`chat/workspace/history/`（Macごと）に保存され、別のMacとは共有されません。`chat/workspace/`はgit管理外です。
 - 対応ブラウザはChromeです。Safariは確認していません。
-- ChatGPT（Codex CLI）はフェーズ2で対応予定のため、選択肢には出ますが選べません。
+- ChatGPTを選ぶと`codex exec`に中継します。Codexはトークン単位の逐次表示ができないため、回答は段落単位で出ます。読み取り専用のサンドボックスでシェルを実行するので、書き込みと外部通信は止まりますが、この Mac のファイルは作業フォルダの外も読めます（ドックのAI選択欄にも注記しています）。
+- 回答の下にモデル名と使用トークン（入力・出力）が出ます。生成を停止した場合、そこまでの本文は保存されます。
 - 同時に回答を生成できるのは1件です。1回の回答は180秒で打ち切ります。
 - 質問ごとに`claude -p`を新しい作業ディレクトリで起動するため、`~/.claude/projects/`にジョブごとのセッションディレクトリが増えます。
 
