@@ -135,9 +135,11 @@ out({
   result: reply,
   session_id: sessionId,
   usage: {
-    input_tokens: stdin.length,
-    cache_read_input_tokens: 0,
-    cache_creation_input_tokens: 0,
+    // Disjoint figures, as the real CLI reports them: most of the prompt is
+    // served from the cache and only a little is processed anew.
+    input_tokens: 12,
+    cache_read_input_tokens: stdin.length,
+    cache_creation_input_tokens: 34,
     output_tokens: reply.length,
   },
 });

@@ -76,8 +76,9 @@ for (const [i, text] of messages.entries()) {
 out({
   type: 'turn.completed',
   usage: {
-    input_tokens: stdin.length,
-    cached_input_tokens: 0,
+    // `cached_input_tokens` is a part of `input_tokens`, as in V14.
+    input_tokens: stdin.length + 100,
+    cached_input_tokens: 100,
     cache_write_input_tokens: 0,
     output_tokens: messages.join('').length,
     reasoning_output_tokens: 0,
