@@ -6,6 +6,7 @@
 改訂: 2026-09-12 PR #1 の設計レビュー（4 件）を反映。§5.2・§5.5・§6.4・§7.3・§8・§9 を書き直し、§13 に V9〜V11 を追加
 改訂 2: 2026-09-12 再レビュー（2 件）を反映。§5.5 のリンク先パス、§5.2・§7.3 の 404 時の扱いを修正
 改訂 3: 2026-09-12 §13 のうち事前確認できる 8 件（V1〜V5・V7・V9・V10）を実機で検証し結果を反映。`--bare` を撤回、`--add-dir` と `--ignore-user-config` を追加
+改訂 7: 2026-09-12 フェーズ 2 を実装しました（Codex アダプタ、使用トークン表示、キャンセル時の表示、モバイルの調整）。実測に合わせて §5.3 の Codex の起動コマンドを直し、§13 に V14 を追加しました
 改訂 6: 2026-09-12 チャットが読める範囲を、収集状況だけでなくサイトが出している情報全体に広げました（§5.4、§5.5、§6.2）。おすすめ攻略ルートと Bank 終了対策をスナップショットに加え、作品別の入手方法・進化条件・サイトの説明を静的な参照データとして生成します。skill を 2 つに分け、システムプロンプトに読み手の前提を書きました（§6.1）
 改訂 5: 2026-09-12 tailnet 越しに iPhone から使うため、ブリッジを 127.0.0.1 以外のアドレスでも待ち受けられるようにしました（§5.6、§7.1、§11、§16）。モデル名の表示も短くしました（§7.2）
 改訂 4: 2026-09-12 フェーズ 1 の実装に合わせて契約を確定。§5.2 の応答・エラー・`meta` の送り方、§5.4 の `collection.md` 見出しと GC、§5.6 の Host 検査、§6.2 の表の列、§7.3 の保存項目（ジョブ id を外した）、§8 を更新。§13 に V13（実 CLI での skill 経由 Read）を追加
@@ -203,11 +204,13 @@ Codex アダプタの起動コマンド例です。
 
 ```bash
 codex exec --json -m gpt-5.5 \
-  -C chat/workspace/jobs/<jobId> --sandbox read-only --skip-git-repo-check \
-  --ignore-user-config \
+  --sandbox read-only --skip-git-repo-check --ignore-user-config \
   -
 ```
 
+- 作業ディレクトリは spawn の `cwd` で渡し、`-C` は使いません。`codex exec resume` に `-C` が無いため、初回ターンと継続ターンで渡し方を揃えました（V14）。
+- 2 ターン目以降は `codex exec resume --json -m <model> --skip-git-repo-check --ignore-user-config -c sandbox_mode="read-only" <thread_id> -` です。`resume` には `--sandbox` が無いので、同じ指定を設定の上書きで渡します（V14）。
+- `--add-dir` は渡しません。Codex の `--add-dir` は「書き込み可能なディレクトリを足す」意味で、読み取りは `--sandbox read-only` でも cwd の外に及ぶためです（V10、§5.6）。
 - システムプロンプトはジョブ cwd の `AGENTS.md`（`prompts/system.md` へのリンク）として読ませます。Codex は cwd の `AGENTS.md` を自動で読みます。
 - `--sandbox read-only` はモデルが生成したシェルコマンドを「書き込み不可・ネットワーク不可」で実行する方針であり、シェル実行そのものを止めるものではありません（レビュー指摘 4）。Codex については「読み取り用コマンドの実行は許容する」設計にします。詳細は §5.6。
 - JSONL の `item.*` イベントのうち `item.type === 'agent_message'` の本文を流します。トークン単位の delta イベントはありません（V3 で確認。出るのは `thread.started` / `turn.started` / `item.started` / `item.completed` / `turn.completed`）。Codex はメッセージ完了単位の表示になり、R6 の「途中でも表示」は Codex では段落単位までです。skill を読む前に「読み直して確認します」という短い `agent_message` が先に来るので、それを表示すれば待ち時間の体感は減ります。
@@ -499,7 +502,8 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 
 - Claude: `stream-json` の各行を JSON として読み、`type === 'stream_event'` かつ `event.type === 'content_block_delta'` かつ `event.delta.type === 'text_delta'` の `text` を `delta` に変換します。`event.type === 'content_block_start'` で `content_block.type === 'tool_use'` なら `status` を出します。`parent_tool_use_id` が付いた行（サブエージェント内の出力）は使いません。`system` / `init` と `result` の `session_id` を `cliSessionId` にし、`result` で `usage`、`is_error` を取ります。行が JSON として壊れていたら捨てて続行し、`is_error` か非 0 終了で本文が空なら `error` にします（エラー文は `result.result`、なければ stderr の末尾 3 行）。本文が 1 文字でもあれば `done` として残します。
 - ツール呼び出しの前後で本文が続くとき（「確認します」→ skill → 回答）は、前の本文の後に `\n\n` を挟んでから次の本文を流します。挟まないと 2 つの文が段落なしでつながるためです。
-- Codex: `--json` の各行の `type` を見て、`item.completed` かつ `item.type === 'agent_message'` の `text` を流します。`thread.started` の `thread_id` を `cliSessionId` にします。`turn.completed` の `usage` を使います。トークン単位の delta イベントは無いので（V3）、`item.completed` ごとに 1 つの `delta` として流します。
+- Codex: `--json` の各行の `type` を見て、`item.completed` かつ `item.type === 'agent_message'` の `text` を流します。`thread.started` の `thread_id` を `cliSessionId` にします。`turn.completed` の `usage.input_tokens` と `usage.output_tokens` を使います（`cached_input_tokens` は `input_tokens` の内訳なので足しません。V14）。トークン単位の delta イベントは無いので（V3）、`item.completed` ごとに 1 つの `delta` として流し、2 つ目以降の本文の前に空行を挟みます。`item.started` で `item.type` が `agent_message` 以外のとき（`command_execution` など）は `status` を出します。
+- 両アダプタで共通の spawn・stdin への書き込み・中止時の kill・JSONL の行読みは `chat/bridge/providers/process.mjs` にまとめています。
 - ブラウザ側は `delta` を受けるたびに末尾のメッセージに追記し、`message-scroller.tsx` の自動追従を使います。描画は `requestAnimationFrame` でまとめ、1 フレームに 1 回の setState にします。
 
 ## 11. 設定ファイル（`chat/config.json`）
@@ -553,11 +557,11 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 6. 履歴 UI、ページ遷移後の `snapshot` による復元
 7. README に起動手順と制約（ローカル限定、履歴は Mac ごと）を追記
 
-フェーズ 2
+フェーズ 2。2026-09-12 に実装しました。
 
-1. Codex アダプタ（V3〜V5・V10 は検証済みです。`agent_message` 完了単位で表示します）
-2. モバイル（Sheet）対応の調整
-3. 使用トークン表示、キャンセル時の中途保存
+1. Codex アダプタ（`agent_message` 完了単位の表示、`codex exec resume` での継続、転写方式への切り替え）
+2. モバイルの調整（AI とモデルの選択欄を折り返す、Codex の注記を出す）
+3. 使用トークン表示（回答の下に「モデル名 · 入力 58.9k / 出力 1.0k トークン」）。キャンセル時の中途保存はフェーズ 1 の時点で動いていたので、表示を「中止しました（ここまでを保存）」に変えただけです
 
 フェーズ 3（必要になったら）
 
@@ -582,6 +586,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 | V10 | Codex のシェル無効化設定の有無。`read-only` の実効性 | `features.shell_tool` / `unified_exec` を false にできるが、モデルはユーザー設定の MCP（`cua_repl`）でサンドボックス外の JavaScript に回った。`--sandbox read-only` では `touch` が `Operation not permitted`、`curl` が exit 6 で、書き込みと外部通信は遮断された | シェルは残し、`--ignore-user-config` で MCP を外す（§5.6） |
 | V11 | 継続セッションで収集状況を更新後、同じ質問に新しい内容を答えるか | **未検証**。発言ヘッダーと `--resume` の実装が必要 | 実装後に 10 回計測して `freshSessionOnContextChange` の既定を決める |
 | V12 | ジョブごとに cwd を変えても `claude -p --resume` が前のセッションを引き継ぐか（§5.5 と §9.1 の両立） | **引き継ぐ**。`jobs/j1` で始めたセッションを `jobs/j2` から `--resume` し、前ターンの内容を答えた | §5.5 の per-job cwd をそのまま採用 |
+| V14 | `codex exec --json` のイベントの形と、`codex exec resume` の引数 | **確認済み**。初回は `{"type":"thread.started","thread_id":"…"}` → `{"type":"turn.started"}` → `{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"…"}}` → `{"type":"turn.completed","usage":{"input_tokens":14019,"cached_input_tokens":5504,"cache_write_input_tokens":0,"output_tokens":7,"reasoning_output_tokens":0}}`。`codex exec resume` は `-C` と `--sandbox` を受け付けないが、`-c sandbox_mode="read-only"` は通り、同じ `thread_id` で前ターンの内容を答えた（入力 29,409 トークン）。stderr の models cache の警告は毎回出る | §5.3 と §10 に反映。`--add-dir` は渡さない |
 | V13 | 実装したブリッジ経由で、実 `claude` が skill → Read で `data/collection.md` を読めるか（`--add-dir` の効き目、表の大きさ） | **読めた**（haiku、1 回）。全 1,025 種に 捕送登、半数に L、1/7 に 大、ピカチュウだけ 捕 のみの版で「ピカチュウは捕まえた？HOMEには送った？」と聞き、「捕まえているが HOME には送っていない。図鑑登録もされていない」と答えた。Skill → Read → Read の 5 ターン、CLI の所要 13.0 秒（SSE の接続から `done` まで 15.1 秒）、入力トークン合計 58,885、出力 1,025。1 回目の Read は `data/collection.md` を skill のフォルダ基準（`.claude/skills/dex-compass-collection/data/collection.md`）で解決して拒否され、2 回目に `contexts/<contextId>/collection.md` を絶対パスで読んだ。Read の結果は行番号付きで 27,542 文字で、1 回で読めた。`init` の skill 一覧には `dex-compass-collection` のほかにユーザー全体・プラグイン・同梱の skill が 20 個載っていた（`--setting-sources project` では外れない） | SKILL.md とシステムプロンプトに「cwd 直下の data/」と書いた（修正後の実 CLI では未確認）。skill 一覧の件は §16 に記載 |
 
 未検証で残るのは V8 と V11 の 2 件です。V8 はデプロイ後に計測します。V11 は実装が済んだので計測できますが、実 CLI を 10 回以上動かすのでフェーズ 1 では行っていません。V6 は Chrome で確認済み、Safari は対象外です。
@@ -591,7 +596,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 設計変更後に残るリスクを、致命度の高い順に挙げます。
 
 1. **V6 が通らないとサイト版でチャットが使えない（成立条件）**。ブラウザが `https://` ページから `http://127.0.0.1` への fetch を止めると、ブリッジ方式はサイト版で成り立ちません。Chrome 152 は許可ダイアログ経由で通ることを確認しました（V6）。Safari は未確認のまま対象外とし、README とドックの未接続画面に「対応ブラウザは Chrome」と書きます。通らなかった場合の代替は、(a) ブリッジを `https://127.0.0.1` にして自己署名証明書を信頼させる、(b) サイト版ではチャットを無効にし `pnpm dev` と単一 HTML 版（`allowNullOrigin: true`）に限定する、の 2 つです。実装前に Chrome と Safari で `fetch('http://127.0.0.1:47117/health')` を試して決めます。
-2. **Codex はサンドボックス内でディスク全体を読める**。`--sandbox read-only` は書き込みと外部通信を止めますが読み取りは止めず、`web.run`（OpenAI 側の検索）も残ります。プロンプトインジェクションの入口はユーザー自身の発言と `collection.md`（ポケモン名と ○ だけ）なので現実的な経路は狭いものの、ゼロではありません。Codex はフェーズ 2 に置き、AI 選択欄に注記します。
+2. **Codex はサンドボックス内でディスク全体を読める**。`--sandbox read-only` は書き込みと外部通信を止めますが読み取りは止めず、`web.run`（OpenAI 側の検索）も残ります。プロンプトインジェクションの入口はユーザー自身の発言とスナップショットの Markdown なので現実的な経路は狭いものの、ゼロではありません。ドックの AI 選択欄に注記を出しています。
 3. **ローカルの HTTP サーバーが他サイトから叩かれる**。Origin 許可リストとトークンで防ぎます。Origin ヘッダーはブラウザが付けるため偽装できず、トークンは許可した Origin の localStorage にしかありません。残るのはサイト自身の XSS 経由で、これは既存の `/api/state` と同じ前提です。
 4. **サブスクリプションの消費**。Codex は 1 ターン 14,000〜39,000 入力トークン、Claude は skill 参照で 4 ターンです。同時 1 ジョブと軽いモデルの既定で抑えますが、上限に当たると「しばらく使えない」状態になります。ブリッジは CLI のレート制限エラーをそのままドックに表示します。
 
@@ -621,6 +626,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 - `chat/skills/dex-compass-guide/SKILL.md`
 - `lib/chat/plan.ts`、`lib/chat/reference.ts`、`lib/chat/models.ts`
 - `scripts/build-chat-reference.mjs`、`scripts/load-ts.mjs`
+- `chat/bridge/providers/process.mjs`（spawn と JSONL の共通処理）、`scripts/fake-codex.mjs`
 - `docs/chat-sidebar.md`（本書）
 
 変更

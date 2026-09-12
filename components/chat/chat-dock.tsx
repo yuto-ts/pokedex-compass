@@ -49,8 +49,14 @@ const useMobile = () =>
   );
 
 const reasons: Record<string, string> = {
-  not_implemented: '未対応（フェーズ 2）',
+  not_implemented: '未対応',
   not_found: 'CLI が見つかりません',
+};
+
+// §5.6: the Codex sandbox stops writes and network access but not reads.
+const providerNotes: Record<string, string> = {
+  codex:
+    'Codex は読み取り専用のサンドボックスでシェルを実行します。書き込みと外部通信は止まりますが、この Mac のファイルは作業フォルダの外も読めます。',
 };
 
 function ModelBar({ chat, prefs }: { chat: Chat; prefs: ChatPrefs }) {
@@ -83,6 +89,11 @@ function ModelBar({ chat, prefs }: { chat: Chat; prefs: ChatPrefs }) {
           </option>
         ))}
       </select>
+      {provider && providerNotes[provider.id] && (
+        <p className="chat-note chat-provider-note">
+          {providerNotes[provider.id]}
+        </p>
+      )}
     </div>
   );
 }

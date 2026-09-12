@@ -38,9 +38,25 @@ function Markdown({ text }: { text: string }) {
 }
 
 const toolLabel: Record<string, string> = {
-  Skill: '収集状況の調べ方を確認中…',
-  Read: '収集状況を読み込み中…',
+  Skill: 'skill を確認中…',
+  Read: 'サイトのデータを読み込み中…',
+  command_execution: 'コマンドを実行中…',
+  web_search: 'Web を検索中…',
+  file_change: 'ファイルを編集中…',
 };
+
+const tokens = (n?: number) =>
+  n === undefined ? '' : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+
+// Shown under a finished answer: which model wrote it and what it cost.
+function usageText(m: ChatMessage) {
+  const parts = [m.model ? modelLabel(m.model) : ''];
+  if (m.usage)
+    parts.push(
+      `入力 ${tokens(m.usage.inputTokens)} / 出力 ${tokens(m.usage.outputTokens)} トークン`,
+    );
+  return parts.filter(Boolean).join(' · ');
+}
 
 function Footer({ m, tool }: { m: ChatMessage; tool: string }) {
   if (m.status === 'streaming')
@@ -51,15 +67,20 @@ function Footer({ m, tool }: { m: ChatMessage; tool: string }) {
       </MessageFooter>
     );
   if (m.status === 'cancelled')
-    return <MessageFooter className="chat-meta">中止しました</MessageFooter>;
+    return (
+      <MessageFooter className="chat-meta">
+        {m.content ? '中止しました（ここまでを保存）' : '中止しました'}
+      </MessageFooter>
+    );
   if (m.status === 'error')
     return (
       <MessageFooter className="chat-meta chat-error-text">
         エラー: {m.error ?? '不明なエラー'}
       </MessageFooter>
     );
-  return m.model ? (
-    <MessageFooter className="chat-meta">{modelLabel(m.model)}</MessageFooter>
+  const text = usageText(m);
+  return text ? (
+    <MessageFooter className="chat-meta">{text}</MessageFooter>
   ) : null;
 }
 

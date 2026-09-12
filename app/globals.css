@@ -1569,9 +1569,17 @@ html.chat-open .chat-dock {
 }
 .chat-models {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 8px 12px;
   border-bottom: 1px solid #eef1f3;
+}
+.chat-models select {
+  flex: 1 1 40%;
+}
+.chat-provider-note {
+  width: 100%;
+  margin-top: 2px;
 }
 .chat-models select {
   min-width: 0;
