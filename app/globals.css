@@ -1486,7 +1486,22 @@ html.chat-open .chat-dock {
 .chat-resize:hover,
 .chat-resize:focus-visible {
   outline: none;
-  background: rgb(8 126 119 / 25%);
+  background: transparent;
+}
+/* The hit area reaches 3px outside the panel; only this line is painted, on
+   the border itself, so hovering does not look like the panel widened. */
+.chat-resize::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+}
+.chat-resize:hover::after,
+.chat-resize:focus-visible::after {
+  background: #087e77;
 }
 .chat-ui {
   display: flex;
