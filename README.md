@@ -66,7 +66,9 @@ Switch作品の入手場所：Serebii各種ページのLocations表。`data/mode
 3. サイト右端の「チャット」を開き、接続トークンを1回だけ入力します。トークンはそのブラウザのlocalStorageに保存されます。
 4. https のサイト版では、最初の接続時にChromeの「ローカル ネットワークへのアクセス」ダイアログが出るので「許可」を押します。
 
-- システムプロンプトは`chat/prompts/system.md`、収集状況skillは`chat/skills/dex-compass-collection/SKILL.md`です。編集は次の質問から反映され、再起動は不要です。
+- システムプロンプトは`chat/prompts/system.md`、skillは`chat/skills/dex-compass-collection/`（ユーザーの記録）と`chat/skills/dex-compass-guide/`（入手方法・ルート・Bank・サイト説明）です。編集は次の質問から反映され、再起動は不要です。
+- 回答の書き方は`chat/prompts/system.md`の「読み手の前提」で調整します。既定では、シリーズの基本を知っている読み手向けに、基本の説明を省いて手順と注意点から書くよう指示しています。
+- AIが読めるのは、収集状況（`data/collection.md`）に加えて、おすすめ攻略ルート（`data/routes.md`）、Bank終了対策（`data/bank.md`）、作品別の入手方法・進化条件（`reference/species/<4桁のNo>.md`）、サイトの説明（`reference/site.md`）です。`reference/`は`corepack pnpm chat`が起動前に`scripts/build-chat-reference.mjs`で生成します（元データが変わったときだけ作り直し、約4MB）。
 - ポート・許可Origin・モデル一覧は`chat/config.json`にあります。サイト版のドメインは`allowedOrigins`に追加してください。単一HTML版（`file://`）から使う場合は`allowNullOrigin`を`true`にします。
 - 収集状況はブラウザがブリッジへ送った版（`chat/workspace/contexts/`）をAIがskillで読みます。チェック直後の質問は、送信前に最新の状態を同期してから送ります。
 

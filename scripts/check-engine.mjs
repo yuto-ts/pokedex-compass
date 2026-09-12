@@ -1,31 +1,10 @@
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import vm from 'node:vm';
-import ts from 'typescript';
 import assert from 'node:assert/strict';
-const require = createRequire(import.meta.url);
-function loadTs(path) {
-  const source = readFileSync(new URL(path, import.meta.url), 'utf8');
-  const js = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2022,
-      esModuleInterop: true,
-    },
-  }).outputText;
-  const mod = { exports: {} };
-  vm.runInNewContext(js, {
-    module: mod,
-    exports: mod.exports,
-    require: (p) =>
-      p.startsWith('@/lib/')
-        ? loadTs('../' + p.slice(2) + '.ts')
-        : p.startsWith('@/')
-          ? require('../' + p.slice(2))
-          : require(p),
-  });
-  return mod.exports;
-}
+import { resolve } from 'node:path';
+import { createLoader } from './load-ts.mjs';
+
+const load = createLoader(resolve(import.meta.dirname, '..'));
+const loadTs = (path) => load(path.replace('../', ''));
+
 const engineModule = { exports: loadTs('../lib/dex.ts') };
 const { pokemon, recommend, initial, available, optimize, parseState } =
   engineModule.exports;
@@ -144,3 +123,47 @@ assert.equal(modelLabel('gpt-5.5'), 'GPT-5.5');
 assert.equal(modelLabel('gpt-5.6-luna'), 'GPT-5.6 Luna');
 assert.equal(modelLabel('mystery-model'), 'mystery-model');
 console.log('PASS: chat model labels shorten known ids and keep unknown ones.');
+
+const { buildRoutes, buildBank } = loadTs('../lib/chat/plan.ts');
+const planState = {
+  ...initial,
+  owned: ['Scarlet', 'Violet'],
+  dlc: [],
+  progress: { 25: { caught: true }, 150: { preserve: true } },
+};
+const routesDoc = buildRoutes(planState);
+assert.match(routesDoc, /^## おすすめ攻略ルート/);
+assert.match(routesDoc, /所持ソフト: Scarlet、Violet/);
+assert.ok(
+  !routesDoc.includes('No.0025 ピカチュウ:'),
+  'caught species are skipped',
+);
+assert.match(routesDoc, /### Scarlet（\d+匹）/);
+assert.match(routesDoc, /## 別途確認が必要（\d+匹）/);
+const bankDoc = buildBank(planState);
+assert.match(bankDoc, /^## Bank 終了対策/);
+assert.match(
+  bankDoc,
+  /- No\.0150 ミュウツー（未捕獲・HOME未送信・図鑑未登録）/,
+);
+assert.match(bankDoc, /2027年2月26日/);
+console.log(
+  `PASS: chat routes.md (${routesDoc.length} chars) and bank.md (${bankDoc.length} chars) describe the current state.`,
+);
+
+const { buildSpecies, buildIndex, buildSiteGuide } = loadTs(
+  '../lib/chat/reference.ts',
+);
+const pikachu = buildSpecies(pokemon.find((p) => p.id === 25));
+assert.match(pikachu, /^# No\.0025 ピカチュウ（pikachu）/);
+assert.match(pikachu, /- 進化系統: No\.0172 ピチュー \/ No\.0025 ピカチュウ/);
+assert.match(pikachu, /\| 作品 \| 方法 \|/);
+assert.match(pikachu, /https:\/\//);
+const missingRoutes = buildSpecies(pokemon.find((p) => p.id === 1000));
+assert.ok(
+  missingRoutes.includes('入手方法を収録していません') ||
+    missingRoutes.includes('| 作品 |'),
+);
+assert.match(buildIndex(), /^# 全国図鑑の索引/);
+assert.match(buildSiteGuide(), /^# DEX COMPASS で見られるもの/);
+console.log('PASS: chat reference pages for species, index and site guide.');

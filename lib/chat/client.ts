@@ -174,8 +174,13 @@ export const bridge = {
       `/threads/${id}/messages`,
       { method: 'POST', body },
     ),
-  putContext: (body: { source: string; collection: string; state: unknown }) =>
-    call<{ contextId: string }>('/contexts', { method: 'PUT', body }),
+  putContext: (body: {
+    source: string;
+    collection: string;
+    routes: string;
+    bank: string;
+    state: unknown;
+  }) => call<{ contextId: string }>('/contexts', { method: 'PUT', body }),
   cancel: (jobId: string) =>
     call<{ status: MessageStatus }>(`/jobs/${jobId}/cancel`, {
       method: 'POST',

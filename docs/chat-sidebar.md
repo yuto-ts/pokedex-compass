@@ -6,6 +6,7 @@
 改訂: 2026-09-12 PR #1 の設計レビュー（4 件）を反映。§5.2・§5.5・§6.4・§7.3・§8・§9 を書き直し、§13 に V9〜V11 を追加
 改訂 2: 2026-09-12 再レビュー（2 件）を反映。§5.5 のリンク先パス、§5.2・§7.3 の 404 時の扱いを修正
 改訂 3: 2026-09-12 §13 のうち事前確認できる 8 件（V1〜V5・V7・V9・V10）を実機で検証し結果を反映。`--bare` を撤回、`--add-dir` と `--ignore-user-config` を追加
+改訂 6: 2026-09-12 チャットが読める範囲を、収集状況だけでなくサイトが出している情報全体に広げました（§5.4、§5.5、§6.2）。おすすめ攻略ルートと Bank 終了対策をスナップショットに加え、作品別の入手方法・進化条件・サイトの説明を静的な参照データとして生成します。skill を 2 つに分け、システムプロンプトに読み手の前提を書きました（§6.1）
 改訂 5: 2026-09-12 tailnet 越しに iPhone から使うため、ブリッジを 127.0.0.1 以外のアドレスでも待ち受けられるようにしました（§5.6、§7.1、§11、§16）。モデル名の表示も短くしました（§7.2）
 改訂 4: 2026-09-12 フェーズ 1 の実装に合わせて契約を確定。§5.2 の応答・エラー・`meta` の送り方、§5.4 の `collection.md` 見出しと GC、§5.6 の Host 検査、§6.2 の表の列、§7.3 の保存項目（ジョブ id を外した）、§8 を更新。§13 に V13（実 CLI での skill 経由 Read）を追加
 
@@ -110,8 +111,10 @@ chat/
     system.md            # 共通システムプロンプト（git 管理）
   skills/
     dex-compass-collection/SKILL.md   # 収集状況 skill（git 管理）
+    dex-compass-guide/SKILL.md        # 入手方法・ルート・Bank・サイト説明 skill（git 管理）
   workspace/             # 生成物。CLI の cwd はこの下の jobs/<jobId>/
-    contexts/<contextId>/collection.md, state.json, meta.json   # gitignore。収集状況スナップショット
+    contexts/<contextId>/collection.md, routes.md, bank.md, state.json, meta.json   # gitignore。状態のスナップショット
+    reference/index.md, site.md, species/<4桁のNo>.md   # gitignore。状態に依存しない参照データ
     jobs/<jobId>/        # gitignore。ジョブごとの cwd（§5.5）
     history/             # gitignore。<threadId>.json
     .token               # gitignore。接続トークン
@@ -126,7 +129,7 @@ chat/
 | メソッド | パス | 用途 |
 |----------|------|------|
 | GET | `/health` | 稼働確認。トークン不要。`{ version: 1, providers: [{ id, label, default, models, available, reason? }] }` を返す。`available` は PATH 上に CLI があるか（`which` 相当）。使えない理由を `reason` に入れる（`not_found`: CLI が見つからない、`not_implemented`: アダプタ未実装。フェーズ 1 の Codex） |
-| PUT | `/contexts` | 収集状況のスナップショットを登録する。本文は `{ source, collection, state }`。応答は `{ contextId }`。同じ内容なら同じ id を返す（§5.4） |
+| PUT | `/contexts` | 状態のスナップショットを登録する。本文は `{ source, collection, routes, bank, state }`（`collection` / `routes` / `bank` は Markdown の本文）。応答は `{ contextId }`。同じ内容なら同じ id を返す（§5.4） |
 | GET | `/threads` | スレッド一覧（id, title, provider, model, updatedAt）。更新日時降順 |
 | POST | `/threads` | 新規スレッド。`{ provider, model }`。201 でスレッド全体を返す。タイトルは最初の発言で決まる |
 | GET | `/threads/:id` | メッセージ込みで返す。生成途中のメッセージは受信済み本文と `jobId` を含む |
@@ -216,9 +219,9 @@ codex exec --json -m gpt-5.5 \
 
 レビュー指摘 1（サイト版と単一 HTML 版が同じファイルを上書きし合う、質問がデバウンス前に走る）への対応です。収集状況を「最新 1 つ」ではなく内容ごとのスナップショットとして保持し、質問はスナップショット id に紐づけます。
 
-- `contextId` は `sha256(source + "\n" + collection + "\n" + JSON.stringify(state))` の先頭 16 桁です。同じ内容なら同じ id になるため、二重登録は起きません。
+- `contextId` は `sha256(source, collection, routes, bank, JSON.stringify(state) を改行でつないだもの)` の先頭 16 桁です。同じ内容なら同じ id になるため、二重登録は起きません。
 - `source` は `site` / `dev` / `standalone` のいずれかで、`collection.md` の先頭にも書き出します。AI が「どの保存先の記録か」を答えられるようにするためです。
-- `collection.md` の見出し（版・保存元・登録時刻）はブリッジが付けます。ブラウザが送る `collection` は本文（集計と表）だけです。`contextId` は本文から計算するので、本文の中に `contextId` や時刻を入れると同じ内容でも id が変わってしまうためです。
+- スナップショットには 3 つの Markdown が入ります。`collection.md`（収集状況の集計と 1,025 行の表）、`routes.md`（おすすめ攻略ルートの画面と同じ内容）、`bank.md`（Bank 終了対策の画面と同じ内容）です。見出し（版・保存元・登録時刻）はブリッジが 3 つとも付けます。ブラウザが送るのは本文だけです。`contextId` は本文から計算するので、本文の中に `contextId` や時刻を入れると同じ内容でも id が変わってしまうためです。
 - スナップショットは `chat/workspace/contexts/<contextId>/` に保存します。一時ディレクトリに書いてから rename するので、実行中のジョブが書きかけのファイルを読むことはありません。同じ内容の再登録では `meta.json` の `lastUsedAt` だけを更新します。
 - ブリッジは `lastUsedAt` の新しい順に 30 件と、保持中のジョブまたはスレッドの最終ターン（`lastContextId`）が参照している id を残し、それ以外を起動時と 1 時間ごとに削除します。
 - 未登録の `contextId` でメッセージを送ると 409 を返します。クライアントは再同期してから送り直します。
@@ -231,13 +234,15 @@ codex exec --json -m gpt-5.5 \
 chat/workspace/jobs/<jobId>/
   CLAUDE.md   → <repo>/chat/prompts/system.md
   AGENTS.md   → <repo>/chat/prompts/system.md
-  .claude/skills/dex-compass-collection → <repo>/chat/skills/dex-compass-collection
-  .agents/skills/dex-compass-collection → <repo>/chat/skills/dex-compass-collection
+  .claude/skills/<skill> → <repo>/chat/skills/<skill>        # skill ごとに 1 本
+  .agents/skills/<skill> → <repo>/chat/skills/<skill>        # 同上
   data        → <repo>/chat/workspace/contexts/<contextId>
+  reference   → <repo>/chat/workspace/reference
 ```
 
 - リンク先はブリッジが `path.resolve(repoRoot, …)` で絶対パスとして計算します。相対パスで書くと階層を数え違えやすいためです（再レビュー指摘 1。相対で書くなら skill のリンクは `../../../../../skills/dex-compass-collection` で、5 階層上がります）。
-- 作成後に `fs.realpath` で 5 つのリンク先が存在することを確認し、無ければジョブを `error` で終了します。テストでもこの解決結果を検証します（§14）。
+- 作成後に `fs.realpath` でリンク先が存在することを確認し、無ければジョブを `error` で終了します。例外は `reference` で、参照データを生成していない場合はそのリンクだけ外して続行します。
+- `--add-dir` には、解決できた `data` と `reference` の実体パスを渡します。リンクの先は cwd の外なので、渡さないと Read が拒否されます（V2・V9）。テストでもこの解決結果を検証します（§14）。
 - 中身はシンボリックリンクだけなので作成は数 ms です。ジョブの保持期間（10 分）が過ぎたら削除します。
 - skill 本文は常に `data/collection.md` を読めばよく、どの版を読むかはブリッジが決めます。AI には版の選択をさせません。
 - Codex は cwd の `.agents/skills` と `.codex/skills` のどちらからも skill を発見しました（V4）。ベンダー横断の `.agents/skills/dex-compass-collection` にもリンクを置きます（`.claude/skills` は Codex には見えません）。
@@ -268,13 +273,21 @@ chat/workspace/jobs/<jobId>/
 - 骨子は次のとおりです。
   - 役割: DEX COMPASS（Pokémon HOME 全国図鑑管理ツール）に付属するポケモン相談役です。日本語で答えます。
   - 知識の扱い: 入手方法・進化条件は作品ごとに差があること、知識の確認日を明示すること、断定できないときはそう書くことを求めます。
-  - 収集状況の参照ルール: 「捕まえた／未所持／HOME に送った／登録／Living Dex／大切な個体」に関する質問のときだけ `dex-compass-collection` skill を使います。それ以外では読みません（R12）。収集状況に答えるときは、同じスレッドで以前読んだ内容を使い回さず、毎回読み直してから答えます。発言の先頭に付く「収集状況の版」が前回と違うときは特にそうします（§9.2）。
+  - 読み手の前提: 質問する人はシリーズの基本を知っているので、経験者なら知っていることの説明から書き始めません。手順の具体、詰まりやすい点、所持ソフトと収集状況に即した選び方を先に書きます。この節は文面を調整する場所として使います。
+  - 収集状況の参照ルール: 「捕まえた／未所持／HOME に送った／登録／Living Dex／大切な個体」に関する質問のときだけ `dex-compass-collection` skill を使います。入手方法・ルート・Bank・進化条件・サイトの説明は `dex-compass-guide` skill を使います。それ以外では読みません（R12）。収集状況に答えるときは、同じスレッドで以前読んだ内容を使い回さず、毎回読み直してから答えます。発言の先頭に付く「収集状況の版」が前回と違うときは特にそうします（§9.2）。
   - 出力形式: 短く答えさせ、必要なら箇条書きにします。コードブロックは使いません。
   - 現在の画面: ユーザー発言の先頭に付く「現在の画面: …」行を文脈として使います。
 
-### 6.2 収集状況 skill（`chat/skills/dex-compass-collection/SKILL.md`）
+### 6.2 skill と、AI が読めるファイル
 
-skill の frontmatter（`name`、`description`）だけが常時コンテキストに入り、本文とデータは呼び出されたときだけ読まれます。これで R11 と R12 を両立します。
+skill の frontmatter（`name`、`description`）だけが常時コンテキストに入り、本文とデータは呼び出されたときだけ読まれます。R11 と R12 を両立させるための形です。skill は次の 2 つに分けました。
+
+- `dex-compass-collection`: ユーザー自身の記録。`data/collection.md` と `data/state.json` を読みます。
+- `dex-compass-guide`: サイトが出している情報。`data/routes.md`（おすすめ攻略ルート）、`data/bank.md`（Bank 終了対策）、`reference/species/<4桁のNo>.md`（作品別の入手方法・進化条件・フォルム）、`reference/index.md`（名前から No. を引く索引）、`reference/site.md`（画面・用語・データの限界）を読みます。
+
+`reference/` は状態に依存しないので、スナップショットには入れず `scripts/build-chat-reference.mjs` が `chat/workspace/reference/` に生成します。`corepack pnpm chat` がブリッジ起動前に実行し、元データ（`data/*.json`、`lib/dex.ts`、`lib/chat/reference.ts`）のハッシュが変わったときだけ作り直します。1,025 種で約 4 MB です。
+
+1 回の Read に収まる大きさに保っています。`collection.md` は約 19,600 文字、`routes.md` は全ソフト所持・未捕獲の最大で約 28,600 文字、`reference/index.md` は約 23,000 文字、種別ファイルは 2〜5 KB です。`routes.md` に出現場所の原文を入れると 56,000 文字を超えたため、原文は種別ファイルに置いて一覧には方法と難易度だけを書いています。
 
 ```markdown
 ---
@@ -349,6 +362,8 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
   - `lib/chat/layout.ts`: localStorage のキー、幅の範囲、描画前スクリプト（React を import しないのでサーバーの `app/layout.tsx` からも読める）
   - `lib/chat/context.ts`: 背景同期と送信直前同期、ページコンテキスト
   - `lib/chat/collection.ts`: `collection.md` 本文の生成（ブラウザ API を使わないので `scripts/check-engine.mjs` からも読める）
+  - `lib/chat/plan.ts`: `routes.md` と `bank.md` 本文の生成（同上）
+  - `lib/chat/reference.ts`: 種別ファイル・索引・サイト説明の生成（同上。`scripts/build-chat-reference.mjs` が使う）
   - `lib/chat/models.ts`: モデル id の表示名の短縮（同上）
 
 ### 7.2 レイアウト
@@ -589,7 +604,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 ## 14. テスト方針
 
 - ブリッジ: `chat/bridge/bridge.test.mjs`（19 件、`corepack pnpm test` で実行）。`scripts/fake-claude.mjs`（stream-json を固定間隔で吐く偽 CLI）を `PATH` の先頭に置いた状態で、`/contexts` → `/threads` → `/messages` → `/jobs/:id/events` の流れ、途中接続時の `snapshot` に受信済み本文が全部入ること、未登録 `contextId` の 409、ジョブ cwd の 5 つのリンクが `realpath` で `chat/prompts/system.md`・`chat/skills/dex-compass-collection`・`chat/workspace/contexts/<contextId>` に解決すること、完了後 10 分経過でジョブが 404 になってもスレッドの `status` が `done` のまま残ること、起動時に `streaming` 残留メッセージが `error` に直されること、キャンセル、Origin 拒否、トークン不一致、タイムアウトを `node --test` で確認します。あわせて、2 ターン目の `--resume` と版が変わったときのヘッダー 3 行目、セッション消失時の転写方式への切り替え、モデル切替時の転写方式、同時実行の 429、Host 検査、`null` Origin、スナップショットの同一 id と GC、スレッド削除時のジョブ中止、ブリッジ停止時の `error` 記録を確認します。
-- `collection.md` 本文: `scripts/check-engine.mjs` で 1,025 行と行の書式を確認します。
+- ブラウザが作る文書: `scripts/check-engine.mjs` で `collection.md` の 1,025 行と書式、`routes.md` の作品別の見出しと捕獲済みの除外、`bank.md` の印付き一覧、種別ファイルの進化系統と入手方法の表を確認します。
 - フロント: 既存の `pnpm test` は engine 確認のみなので、`ChatDock` は手動確認のチェックリストを README に置きます（開閉、幅、生成中にページ遷移して本文が欠けないこと、チェック直後の質問が新しい収集状況を反映すること、サイト版と単一 HTML 版を同時に開いても互いの記録を上書きしないこと、履歴削除、未接続表示、モバイル幅）。
 - 型と lint: `corepack pnpm exec tsc --noEmit`、`corepack pnpm lint`、`corepack pnpm build`、`corepack pnpm build:html` を通します。lint は main の時点で `components/ui/*` と `hooks/use-mobile.ts` の 19 件のエラーで失敗しており、チャットで追加・変更したファイルのエラーは 0 件です。`*.test.mjs` だけ `typescript/no-floating-promises` を切っています。`node:test` の `test()` は await せずに並べる書き方だからです。
 
@@ -603,6 +618,9 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 - `components/chat/chat-dock.tsx`、`chat-thread.tsx`、`chat-composer.tsx`、`chat-threads.tsx`、`chat-setup.tsx`、`use-chat.ts`
 - `lib/chat/client.ts`、`store.ts`、`context.ts`、`collection.ts`、`layout.ts`
 - `scripts/fake-claude.mjs`、`chat/bridge/bridge.test.mjs`
+- `chat/skills/dex-compass-guide/SKILL.md`
+- `lib/chat/plan.ts`、`lib/chat/reference.ts`、`lib/chat/models.ts`
+- `scripts/build-chat-reference.mjs`、`scripts/load-ts.mjs`
 - `docs/chat-sidebar.md`（本書）
 
 変更
@@ -612,7 +630,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 - `components/dex-app.tsx`: `syncCollection` と `setPageContext` の呼び出し（各 1 行程度）
 - `app/globals.css`: ドックのスタイル、`body` の右パディング
 - `package.json`: `chat` スクリプト、`test` にブリッジのテストを追加、`marked`、`dompurify` の追加
-- `scripts/check-engine.mjs`: `collection.md` 本文の確認
+- `scripts/check-engine.mjs`: `collection.md`・`routes.md`・`bank.md`・参照データの確認。TS の読み込みは `scripts/load-ts.mjs` に切り出し
 - `.oxlintrc.json`: `*.test.mjs` の `no-floating-promises` を無効化
 - `.gitignore`: `chat/workspace/`（生成物のみのため丸ごと）
 - `README.md`: 起動手順と制約

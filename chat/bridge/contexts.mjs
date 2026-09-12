@@ -22,9 +22,11 @@ export const SOURCES = {
 
 export const isContextId = (id) => typeof id === 'string' && ID.test(id);
 
-export function contextIdOf({ source, collection, state }) {
+export function contextIdOf({ source, collection, routes, bank, state }) {
   return createHash('sha256')
-    .update(source + '\n' + collection + '\n' + JSON.stringify(state))
+    .update(
+      [source, collection, routes, bank, JSON.stringify(state)].join('\n'),
+    )
     .digest('hex')
     .slice(0, 16);
 }
@@ -56,15 +58,26 @@ export function createContextStore(dir, { retention = 30 } = {}) {
     get: meta,
 
     async put(body) {
-      const { source, collection, state } = body ?? {};
+      const { source, collection, routes, bank, state } = body ?? {};
       if (!Object.hasOwn(SOURCES, source))
         throw new ContextError('source は site / dev / standalone のいずれか');
-      if (typeof collection !== 'string' || !collection)
-        throw new ContextError('collection が空です');
+      for (const [name, value] of [
+        ['collection', collection],
+        ['routes', routes],
+        ['bank', bank],
+      ])
+        if (typeof value !== 'string' || !value)
+          throw new ContextError(`${name} が空です`);
       if (!state || typeof state !== 'object' || Array.isArray(state))
         throw new ContextError('state がオブジェクトではありません');
 
-      const contextId = contextIdOf({ source, collection, state });
+      const contextId = contextIdOf({
+        source,
+        collection,
+        routes,
+        bank,
+        state,
+      });
       const now = new Date().toISOString();
       const existing = await meta(contextId);
       if (existing) {
@@ -77,20 +90,32 @@ export function createContextStore(dir, { retention = 30 } = {}) {
       }
 
       const snapshot = { contextId, source, createdAt: now, lastUsedAt: now };
-      const header = [
-        '# DEX COMPASS 収集状況',
-        '',
-        `- 版（contextId）: ${contextId}`,
-        `- 保存元: ${SOURCES[source]}（${source}）`,
-        `- 登録時刻: ${formatLocal(now)}`,
-        '',
-      ].join('\n');
+      const header = (title) =>
+        [
+          `# DEX COMPASS ${title}`,
+          '',
+          `- 版（contextId）: ${contextId}`,
+          `- 保存元: ${SOURCES[source]}（${source}）`,
+          `- 登録時刻: ${formatLocal(now)}`,
+          '',
+        ].join('\n');
       // Write into a temporary directory and rename it into place, so a
       // reader never sees a half-written snapshot.
       await mkdir(dir, { recursive: true });
       const tmp = join(dir, `.tmp-${randomUUID()}`);
       await mkdir(tmp);
-      await writeFile(join(tmp, 'collection.md'), header + '\n' + collection);
+      await writeFile(
+        join(tmp, 'collection.md'),
+        header('収集状況') + '\n' + collection,
+      );
+      await writeFile(
+        join(tmp, 'routes.md'),
+        header('おすすめ攻略ルート') + '\n' + routes,
+      );
+      await writeFile(
+        join(tmp, 'bank.md'),
+        header('Bank 終了対策') + '\n' + bank,
+      );
       await writeFile(join(tmp, 'state.json'), JSON.stringify(state, null, 2));
       await writeFile(
         join(tmp, 'meta.json'),

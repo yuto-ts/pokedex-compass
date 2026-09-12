@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { contextIdOf } from './contexts.mjs';
-import { CONTEXT_CHANGED, SKILL, buildTranscript } from './jobs.mjs';
+import { CONTEXT_CHANGED, SKILLS, buildTranscript } from './jobs.mjs';
 import { createBridge, hostAllowlist, resolveConfig } from './server.mjs';
 import { INTERRUPTED } from './threads.mjs';
 
@@ -133,6 +133,8 @@ const state = (caught = []) => ({
 const snapshot = (caught = []) => ({
   source: 'dev',
   collection: `## 集計\n- 捕獲: ${caught.length} / 1025\n`,
+  routes: '## おすすめ攻略ルート\n- No.0001 フシギダネ: 野生出現\n',
+  bank: `## Bank 終了対策\n- 印: ${caught.length}匹\n`,
   state: state(caught),
 });
 
@@ -287,11 +289,18 @@ test('unknown contextId is 409 and nothing is appended', async () => {
   );
 });
 
-test('job cwd links resolve to the prompt, the skill and the job snapshot', async () => {
+test('job cwd links resolve to the prompts, skills, snapshot and reference', async () => {
   const b = await start({
     env: {
       FAKE_CLAUDE_READ: 'data/collection.md',
       FAKE_CLAUDE_INTERVAL_MS: '30',
+    },
+    seed: async (workspace) => {
+      await mkdir(join(workspace, 'reference', 'species'), { recursive: true });
+      await writeFile(
+        join(workspace, 'reference', 'species', '0025.md'),
+        '# No.0025 ピカチュウ\n',
+      );
     },
   });
   const { contextId, threadId } = await setup(b);
@@ -301,17 +310,22 @@ test('job cwd links resolve to the prompt, the skill and the job snapshot', asyn
   const expected = {
     'CLAUDE.md': join(root, 'chat/prompts/system.md'),
     'AGENTS.md': join(root, 'chat/prompts/system.md'),
-    [`.claude/skills/${SKILL}`]: join(root, 'chat/skills', SKILL),
-    [`.agents/skills/${SKILL}`]: join(root, 'chat/skills', SKILL),
     data: join(b.workspace, 'contexts', contextId),
+    reference: join(b.workspace, 'reference'),
   };
+  for (const skill of SKILLS) {
+    expected[`.claude/skills/${skill}`] = join(root, 'chat/skills', skill);
+    expected[`.agents/skills/${skill}`] = join(root, 'chat/skills', skill);
+  }
   for (const [name, target] of Object.entries(expected))
     assert.equal(await realpath(join(cwd, name)), await realpath(target), name);
-  assert.ok(
-    (
-      await readFile(join(cwd, `.claude/skills/${SKILL}/SKILL.md`), 'utf8')
-    ).includes(`name: ${SKILL}`),
-  );
+  for (const skill of SKILLS)
+    assert.ok(
+      (
+        await readFile(join(cwd, `.claude/skills/${skill}/SKILL.md`), 'utf8')
+      ).includes(`name: ${skill}`),
+      skill,
+    );
 
   const { list } = await b.events(jobId);
   assert.deepEqual(
@@ -326,9 +340,30 @@ test('job cwd links resolve to the prompt, the skill and the job snapshot', asyn
   );
   const [call] = await b.calls();
   assert.equal(await realpath(call.cwd), await realpath(cwd));
-  assert.equal(
-    call.args[call.args.indexOf('--add-dir') + 1],
+  const addDirs = call.args.filter((_, i) => call.args[i - 1] === '--add-dir');
+  assert.deepEqual(addDirs, [
     await realpath(join(b.workspace, 'contexts', contextId)),
+    await realpath(join(b.workspace, 'reference')),
+  ]);
+  assert.equal(
+    await readFile(join(cwd, 'reference/species/0025.md'), 'utf8'),
+    '# No.0025 ピカチュウ\n',
+  );
+});
+
+test('a missing reference directory only drops that link', async () => {
+  const b = await start({ env: { FAKE_CLAUDE_REPLY: '参照なしでも答えます' } });
+  const { contextId, threadId } = await setup(b);
+  const { jobId } = (await ask(b, threadId, contextId)).body;
+  const job = await waitDone(b, jobId);
+  assert.equal(job.body.status, 'done');
+  const [call] = await b.calls();
+  assert.deepEqual(
+    call.args.filter((_, i) => call.args[i - 1] === '--add-dir'),
+    [await realpath(join(b.workspace, 'contexts', contextId))],
+  );
+  await assert.rejects(
+    readFile(join(b.workspace, 'jobs', jobId, 'reference/site.md'), 'utf8'),
   );
 });
 
@@ -683,10 +718,16 @@ test('snapshots are content-addressed, immutable and garbage collected', async (
     source: 'site',
   });
   assert.notEqual(site.body.contextId, a.body.contextId);
-  const md = await readFile(
-    join(b.workspace, 'contexts', a.body.contextId, 'collection.md'),
-    'utf8',
-  );
+  const dir = join(b.workspace, 'contexts', a.body.contextId);
+  for (const [file, head] of [
+    ['routes.md', '## おすすめ攻略ルート'],
+    ['bank.md', '## Bank 終了対策'],
+  ]) {
+    const text = await readFile(join(dir, file), 'utf8');
+    assert.match(text, /- 版（contextId）: [0-9a-f]{16}/);
+    assert.ok(text.includes(head), file);
+  }
+  const md = await readFile(join(dir, 'collection.md'), 'utf8');
   assert.match(
     md,
     /^# DEX COMPASS 収集状況\n\n- 版（contextId）: [0-9a-f]{16}\n- 保存元: 開発サーバー版（dev）\n/,
@@ -700,15 +741,11 @@ test('snapshots are content-addressed, immutable and garbage collected', async (
   );
   assert.deepEqual(saved, state([1]));
   assert.equal(
-    (
-      await b.api('PUT', '/contexts', {
-        source: 'x',
-        collection: 'a',
-        state: {},
-      })
-    ).status,
+    (await b.api('PUT', '/contexts', { ...snapshot(), source: 'x' })).status,
     400,
   );
+  const { routes: _routes, ...withoutRoutes } = snapshot();
+  assert.equal((await b.api('PUT', '/contexts', withoutRoutes)).status, 400);
 
   // Five snapshots, retention 2, one pinned by a thread.
   const { threadId } = await setup(b);

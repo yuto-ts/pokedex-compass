@@ -14,7 +14,7 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "test": "node scripts/check-engine.mjs && node --test 'chat/bridge/*.test.mjs'",
-    "chat": "node chat/bridge/server.mjs"
+    "chat": "node scripts/build-chat-reference.mjs && node chat/bridge/server.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

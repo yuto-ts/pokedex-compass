@@ -2,6 +2,7 @@
 import { useSyncExternalStore } from 'react';
 import { pokemon, type State } from '@/lib/dex';
 import { buildCollection } from './collection';
+import { buildBank, buildRoutes } from './plan';
 import { bridge, type Page } from './client';
 import { getPrefs } from './store';
 
@@ -70,6 +71,8 @@ function push(): Promise<string> {
     .putContext({
       source: currentSource(),
       collection: buildCollection(p.state),
+      routes: buildRoutes(p.state),
+      bank: buildBank(p.state),
       state: p.state,
     })
     .then(({ contextId }) => {

@@ -13,37 +13,45 @@ export class HttpError extends Error {
   }
 }
 
-export const SKILL = 'dex-compass-collection';
+export const SKILLS = ['dex-compass-collection', 'dex-compass-guide'];
+// The reference directory is built by scripts/build-chat-reference.mjs; the
+// bridge still answers without it.
+const OPTIONAL = new Set(['reference']);
 
 // Link name inside the job cwd → absolute target (§5.5).
 export function linkTargets({ root, workspace, contextId }) {
   const prompt = join(root, 'chat/prompts/system.md');
-  const skill = join(root, 'chat/skills', SKILL);
-  return {
+  const links = {
     'CLAUDE.md': prompt,
     'AGENTS.md': prompt,
-    [`.claude/skills/${SKILL}`]: skill,
-    [`.agents/skills/${SKILL}`]: skill,
     data: join(workspace, 'contexts', contextId),
+    reference: join(workspace, 'reference'),
   };
+  for (const skill of SKILLS) {
+    const dir = join(root, 'chat/skills', skill);
+    links[`.claude/skills/${skill}`] = dir;
+    links[`.agents/skills/${skill}`] = dir;
+  }
+  return links;
 }
 
 export async function prepareCwd({ root, workspace, jobId, contextId }) {
   const cwd = join(workspace, 'jobs', jobId);
   const links = linkTargets({ root, workspace, contextId });
+  const linked = [];
   for (const [name, target] of Object.entries(links)) {
     await mkdir(dirname(join(cwd, name)), { recursive: true });
     await symlink(target, join(cwd, name));
-  }
-  // Every link must resolve; a missing target fails the job (§5.5).
-  for (const name of Object.keys(links)) {
-    await realpath(join(cwd, name)).catch(() => {
+    // Every link must resolve; a missing target fails the job (§5.5).
+    const resolved = await realpath(join(cwd, name)).catch(() => undefined);
+    if (resolved) linked.push({ name, path: resolved });
+    else if (OPTIONAL.has(name)) await rm(join(cwd, name), { force: true });
+    else
       throw new Error(
         `ジョブの作業ディレクトリを準備できませんでした（${name}）`,
       );
-    });
   }
-  return cwd;
+  return { cwd, linked };
 }
 
 export const CONTEXT_CHANGED =
@@ -177,13 +185,18 @@ export function createJobManager({
     delete childEnv.CLAUDECODE;
     let failure;
     try {
-      job.cwd = await prepareCwd({
+      const prepared = await prepareCwd({
         root,
         workspace,
         jobId: job.id,
         contextId: job.contextId,
       });
-      const contextDir = await realpath(contexts.path(job.contextId));
+      job.cwd = prepared.cwd;
+      // Reading through a link lands outside the cwd, so each target the
+      // model may read needs --add-dir (§5.3).
+      const addDirs = prepared.linked
+        .filter((l) => l.name === 'data' || l.name === 'reference')
+        .map((l) => l.path);
       let resume = plan.resume;
       for (;;) {
         try {
@@ -193,7 +206,7 @@ export function createJobManager({
             model: job.model,
             prompt: resume ? plan.resumePrompt : plan.freshPrompt,
             resume,
-            addDirs: [contextDir],
+            addDirs,
             signal,
             env: childEnv,
           });
