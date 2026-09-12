@@ -82,10 +82,10 @@
 
 遅さの主因はエージェント的なツール呼び出しの往復なので、次のように起動を絞ります。
 
-- Claude: `--tools "Read,Skill"` に限定する（ターン数上限のフラグは 2.1.268 の `--help` に無いため、打ち切りはブリッジ側のタイムアウトで行う）。ツールを使うのは skill（収集状況）を読むときだけになる。MCP は `--strict-mcp-config` で切る。設定は `--setting-sources project` で workspace のものだけ読む（ユーザー全体の `~/.claude/CLAUDE.md` や hooks を持ち込まない。ただしユーザー全体・プラグインの skill は外れなかった。V13、§16）。`--bare` は使わない（キーチェーンを読まないためサブスクリプション認証が通らず、skill も列挙されない。V2）。`--no-session-persistence` は付けず、`session_id` を控えて後続ターンの `--resume` に使えるようにする。
-- Codex: `--sandbox read-only --skip-git-repo-check --ignore-user-config -C <job cwd>` で起動する。`--ignore-user-config` は `~/.codex/config.toml` の MCP サーバー（この Mac では `cua_repl`）を外すためで、認証は残る（V5・V10）。`--ephemeral` はスレッド継続（`codex exec resume`）ができなくなるため付けない。
-- 既定モデルは軽いもの（Claude は `claude-haiku-4-5-20251001`、Codex は設定ファイルで指定）にし、必要なときだけ大きいモデルを選ぶ。
-- 同時実行はブリッジ全体で 1 ジョブに制限する。多重起動でサブスクリプションの上限を使い切るのを防ぐ。
+- Claude: `--tools "Read,Skill"` に限定します。ターン数上限のフラグは 2.1.268 の `--help` に無いので、打ち切りはブリッジ側のタイムアウトで行います。ツールを使うのは skill（収集状況）を読むときだけです。MCP は `--strict-mcp-config` で切ります。設定は `--setting-sources project` で workspace のものだけ読ませ、ユーザー全体の `~/.claude/CLAUDE.md` や hooks は持ち込みません。ただしユーザー全体・プラグインの skill は外れませんでした（V13、§16）。`--bare` は使いません。キーチェーンを読まないためサブスクリプション認証が通らず、skill も列挙されないからです（V2）。`--no-session-persistence` は付けず、`session_id` を控えて後続ターンの `--resume` に使えるようにします。
+- Codex: `--sandbox read-only --skip-git-repo-check --ignore-user-config -C <job cwd>` で起動します。`--ignore-user-config` は `~/.codex/config.toml` の MCP サーバー（この Mac では `cua_repl`）を外すためで、認証は残ります（V5・V10）。`--ephemeral` はスレッド継続（`codex exec resume`）ができなくなるので付けません。
+- 既定モデルは軽いもの（Claude は `claude-haiku-4-5-20251001`、Codex は設定ファイルで指定）にし、必要なときだけ大きいモデルを選びます。
+- 同時実行はブリッジ全体で 1 ジョブに制限します。多重起動でサブスクリプションの上限を使い切るのを防ぐためです。
 
 推奨: フェーズ 1 は Claude のみ実装し、Codex はアダプタ追加で対応します（§12）。Ollama は必要になったら追加します。
 
@@ -140,16 +140,16 @@ chat/
 SSE のイベント種別は 5 つです。
 
 - `snapshot`: `{ messageId, status, content }`。接続ごとに最初に 1 回。`content` は接続時点までの本文全体。
-- `meta`: `{ provider, model, contextId, cliSessionId? }`。接続ごとに `snapshot` の直後に 1 回。CLI のセッション id が判明・変化したときにも送る。
+- `meta`: `{ provider, model, contextId, cliSessionId? }`。接続ごとに `snapshot` の直後に 1 回送ります。CLI のセッション id が判明・変化したときにも送ります。
 - `delta`: `{ text }`。`snapshot` 以降の逐次テキスト。
-- `status`: `{ kind: 'tool', name: 'Skill' | 'Read' }`。skill 参照中の表示に使う。ドックは次の `delta` で表示を消す。
-- `done`: `{ status: 'done' | 'cancelled' | 'error', error?, usage? }`。最後に 1 回。ジョブが既に終わっていれば `snapshot` の直後に送る。
+- `status`: `{ kind: 'tool', name: 'Skill' | 'Read' }`。skill 参照中の表示に使います。ドックは次の `delta` で表示を消します。
+- `done`: `{ status: 'done' | 'cancelled' | 'error', error?, usage? }`。最後に 1 回送ります。ジョブが既に終わっていれば `snapshot` の直後に送ります。
 
 再接続の契約は次のとおりです。ブリッジがジョブの本文全体を保持しているので、クライアントは受信位置を覚えなくてよい構成にします。
 
-1. ブリッジは `delta` を受け取るたびにジョブの `content` に追記し、同じ文字列をスレッドファイル内の生成中メッセージにも 500 ms ごとと `done` 時に書き出す。
-2. クライアントは `GET /jobs/:id/events` に接続し、`snapshot.content` で表示を置き換えてから `delta` を追記する。`Last-Event-ID` は使わない。
-3. ジョブが無い場合（ブリッジ再起動、または完了から 10 分経過して破棄済み）は 404 を返す。404 はどちらの理由かを区別しないので、クライアントは `GET /threads/:id` を取り直し、スレッドファイルに保存された終了状態を優先する。保存済みの `status` が `done` / `cancelled` / `error` ならそのまま表示する。`streaming` のままで対応ジョブが無いときだけ、そのメッセージを `status: 'error'`（「ブリッジが停止したため中断」）として扱い、スレッドファイルにもその状態を書き戻す（`PATCH` は設けず、ブリッジ起動時に `streaming` のまま残っているメッセージを一括で `error` に直す）。
+1. ブリッジは `delta` を受け取るたびにジョブの `content` に追記し、同じ文字列をスレッドファイル内の生成中メッセージにも 500 ms ごとと `done` 時に書き出します。
+2. クライアントは `GET /jobs/:id/events` に接続し、`snapshot.content` で表示を置き換えてから `delta` を追記します。`Last-Event-ID` は使いません。
+3. ジョブが無い場合（ブリッジ再起動、または完了から 10 分経過して破棄済み）は 404 を返します。404 はどちらの理由かを区別しないので、クライアントは `GET /threads/:id` を取り直し、スレッドファイルに保存された終了状態を優先します。保存済みの `status` が `done` / `cancelled` / `error` ならそのまま表示します。`streaming` のままで対応ジョブが無いときだけ、そのメッセージを `status: 'error'`（「ブリッジが停止したため中断」）として扱い、スレッドファイルにもその状態を書き戻します。`PATCH` は設けず、ブリッジ起動時に `streaming` のまま残っているメッセージを一括で `error` に直します。
 
 ブリッジは `done` 時にメッセージの最終 `status` と本文をスレッドファイルへ書き出し、同時実行の枠を空けてから `done` を送り、ジョブを破棄対象にします。この順序により、正常終了した回答が 404 を経由して `error` になることはなく、`done` を受けた直後の次の質問が 429 になることもありません。ジョブは完了後も 10 分間はメモリに保持し、ページ遷移直後の再接続に応えられるようにします。ブリッジを SIGINT / SIGTERM で止めたときは、生成中のジョブを CLI ごと止め、利用者の中止（`cancelled`）とは区別して `error`（「ブリッジが停止したため中断しました」）で書き出してから終了します。
 
@@ -189,7 +189,7 @@ claude -p \
   --permission-mode default
 ```
 
-- cwd はジョブごとの `chat/workspace/jobs/<jobId>`（§5.5）。プロンプトは stdin から渡します（argv 長の上限を避けるため）。
+- cwd はジョブごとの `chat/workspace/jobs/<jobId>` です（§5.5）。argv 長の上限を避けるため、プロンプトは stdin から渡します。
 - `--add-dir` は必須です。cwd 内のシンボリックリンク `data/` の先は cwd 外と判定され、`--add-dir` なしでは Read が「許可されていない」で拒否されました（V2・V9）。
 - `stream_event` の `content_block_delta` で `delta.type === 'text_delta'` のものを `delta` として流します。`content_block_start` で `tool_use` が来たら `status` を出します。最後の `result` イベントから `session_id` と `usage` を取ります。
 - 2 ターン目以降は `--resume <session_id>` を優先し、失敗したら（セッションが消えている等）§9 の転写方式に切り替えます。「失敗」は、本文を 1 文字も受け取らないうちに `result` イベントなしで非 0 終了した場合、またはエラー文に `No conversation found` / `session` を含む場合です。レート制限のような `result` 付きのエラーでは切り替えません。
@@ -218,7 +218,7 @@ codex exec --json -m gpt-5.5 \
 - `contextId` は `sha256(source + "\n" + collection + "\n" + JSON.stringify(state))` の先頭 16 桁です。同じ内容なら同じ id になるため、二重登録は起きません。
 - `source` は `site` / `dev` / `standalone` のいずれかで、`collection.md` の先頭にも書き出します。AI が「どの保存先の記録か」を答えられるようにするためです。
 - `collection.md` の見出し（版・保存元・登録時刻）はブリッジが付けます。ブラウザが送る `collection` は本文（集計と表）だけです。`contextId` は本文から計算するので、本文の中に `contextId` や時刻を入れると同じ内容でも id が変わってしまうためです。
-- 保存先は `chat/workspace/contexts/<contextId>/`。一時ディレクトリに書いてから rename するので、実行中のジョブが書きかけのファイルを読むことはありません。同じ内容の再登録では `meta.json` の `lastUsedAt` だけを更新します。
+- スナップショットは `chat/workspace/contexts/<contextId>/` に保存します。一時ディレクトリに書いてから rename するので、実行中のジョブが書きかけのファイルを読むことはありません。同じ内容の再登録では `meta.json` の `lastUsedAt` だけを更新します。
 - ブリッジは `lastUsedAt` の新しい順に 30 件と、保持中のジョブまたはスレッドの最終ターン（`lastContextId`）が参照している id を残し、それ以外を起動時と 1 時間ごとに削除します。
 - 未登録の `contextId` でメッセージを送ると 409 を返します。クライアントは再同期してから送り直します。
 
@@ -253,7 +253,7 @@ chat/workspace/jobs/<jobId>/
 - **Claude の権限**: `--tools "Read,Skill"` に限定し、書き込み・シェル実行のツールを与えません。cwd 外の Read は非対話モードでは拒否されます（`~/.zshrc` の Read が「許可されていない」で失敗。V9）。`--add-dir` で許可するのはそのジョブのスナップショットディレクトリ 1 つだけです。
 - **Codex の権限**: `--sandbox read-only` で、モデルが生成したシェルコマンドを書き込み不可・ネットワーク不可で実行します。`touch /tmp/…` は `Operation not permitted`、`curl https://example.com` は名前解決失敗（exit 6）になることを確認しました（V10）。シェル実行自体は起こり、読み取りは cwd 外にも及ぶので、その旨をドックの AI 選択欄に注記します。シェルツールを外す設定（`-c features.shell_tool=false -c features.unified_exec=false`）は存在しますが、外すとモデルはユーザー設定の MCP（`cua_repl` の JavaScript 実行）に回り、サンドボックス外で Node の `fs` を使いました。そのためシェルは残し、代わりに `--ignore-user-config` で MCP を外します（V10）。残るツールは `web.run`（OpenAI 側の検索）と `apply_patch`（read-only で書けない）です。
 - **ジョブ制限**: 同時 1 ジョブ、プロンプト上限 8,000 文字、タイムアウト 180 秒。超過時はプロセスを kill して `done` に `error` を載せます。
-- **ログ**: プロンプト本文はログに残しません（stderr にはジョブ id と所要時間のみ）。
+- **ログ**: プロンプト本文はログに残しません。stderr に出すのはジョブ id と所要時間だけです。
 
 `https://` のサイトから `http://127.0.0.1` へ fetch できるかはブラウザ依存です。Chrome と Firefox はループバックを安全な文脈として扱うため通る想定ですが、Safari は未確認です（§13）。サイト側に CSP を追加する場合は `connect-src` に `http://127.0.0.1:47117` を加える必要があります。
 
@@ -262,13 +262,13 @@ chat/workspace/jobs/<jobId>/
 ### 6.1 システムプロンプト（`chat/prompts/system.md`）
 
 - git 管理し、ブリッジはリクエストごとにファイルを読み直します。編集は次の質問から効き、再起動は不要です（R10）。
-- Claude には `--system-prompt-file` で渡します（既定のコーディング向けシステムプロンプトを置き換える）。Codex には `AGENTS.md` として読ませます。両方に同じファイルを使うため、文面は「どちらの CLI でも成り立つ」内容にします。
+- Claude には `--system-prompt-file` で渡し、既定のコーディング向けシステムプロンプトを置き換えます。Codex には `AGENTS.md` として読ませます。両方に同じファイルを使うため、文面は「どちらの CLI でも成り立つ」内容にします。
 - 骨子は次のとおりです。
-  - 役割: DEX COMPASS（Pokémon HOME 全国図鑑管理ツール）に付属するポケモン相談役。日本語で答える。
-  - 知識の扱い: 入手方法・進化条件は作品ごとに差があること、知識の確認日を明示すること、断定できないときはそう書くこと。
-  - 収集状況の参照ルール: 「捕まえた／未所持／HOME に送った／登録／Living Dex／大切な個体」に関する質問のときだけ `dex-compass-collection` skill を使う。それ以外では読まない（R12）。収集状況に答えるときは、同じスレッドで以前読んだ内容を使い回さず、毎回読み直してから答える。発言の先頭に付く「収集状況の版」が前回と違うときは特にそうする（§9.2）。
-  - 出力形式: 短く、必要なら箇条書き。コードブロックは使わない。
-  - 現在の画面: ユーザー発言の先頭に付く「現在の画面: …」行を文脈として使う。
+  - 役割: DEX COMPASS（Pokémon HOME 全国図鑑管理ツール）に付属するポケモン相談役です。日本語で答えます。
+  - 知識の扱い: 入手方法・進化条件は作品ごとに差があること、知識の確認日を明示すること、断定できないときはそう書くことを求めます。
+  - 収集状況の参照ルール: 「捕まえた／未所持／HOME に送った／登録／Living Dex／大切な個体」に関する質問のときだけ `dex-compass-collection` skill を使います。それ以外では読みません（R12）。収集状況に答えるときは、同じスレッドで以前読んだ内容を使い回さず、毎回読み直してから答えます。発言の先頭に付く「収集状況の版」が前回と違うときは特にそうします（§9.2）。
+  - 出力形式: 短く答えさせ、必要なら箇条書きにします。コードブロックは使いません。
+  - 現在の画面: ユーザー発言の先頭に付く「現在の画面: …」行を文脈として使います。
 
 ### 6.2 収集状況 skill（`chat/skills/dex-compass-collection/SKILL.md`）
 
@@ -306,8 +306,8 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
 
 同期は 2 系統です。
 
-1. **背景同期**: `pending` が変わってから 2 秒後に `PUT /contexts`。通常の操作中はこれで追随します。接続トークンが保存されていない（チャットを設定していない）ブラウザでは行いません。127.0.0.1 への最初の fetch で Chrome の許可ダイアログが出るため、チャットを使わない人に毎回ダイアログを出さないためです。
-2. **送信直前の同期**: 送信ボタンを押した時点で `pending !== synced.serialized` なら、デバウンスを待たずに `PUT /contexts` を発行し、応答の `contextId` を受け取ってからメッセージを POST します。この間は入力欄を「収集状況を同期中…」にします。同期に失敗したら送信せず、エラーと再試行ボタンを出します。収集状況なしで送る選択肢は設けません（古い記録で答えるより、送れないほうが分かりやすいため）。
+1. **背景同期**: `pending` が変わってから 2 秒後に `PUT /contexts` を送ります。通常の操作中はこれで追随します。接続トークンが保存されていない（チャットを設定していない）ブラウザでは行いません。127.0.0.1 への最初の fetch で Chrome の許可ダイアログが出るため、チャットを使わない人に毎回ダイアログを出さないためです。
+2. **送信直前の同期**: 送信ボタンを押した時点で `pending !== synced.serialized` なら、デバウンスを待たずに `PUT /contexts` を発行し、応答の `contextId` を受け取ってからメッセージを POST します。この間は入力欄を「収集状況を同期中…」にします。同期に失敗したら送信せず、エラーと再試行ボタンを出します。収集状況なしで送る選択肢は設けません。古い記録で答えるより、送れないほうが分かりやすいためです。
 
 `State` の読込が終わる前（`loaded === false`）は送信ボタンを無効にします。単一 HTML 版とサイト版はそれぞれ別の `source` と `State` を持つので、別々の `contextId` になり、互いに上書きしません。
 
@@ -354,10 +354,10 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
 - サイト版はページ遷移のたびに SSR された HTML から始まるので、`app/layout.tsx` の `<head>` に小さな描画前スクリプトを置き、localStorage の開閉状態と幅から `chat-open` と `--chat-width` を先に当てます。これがないと、ハイドレーションまで本文の幅が一瞬戻って横にずれます。
 - 幅は 320〜640px の範囲でドラッグ変更できるようにします（ハンドルは pointer イベントで自前実装。`react-resizable-panels` は全面レイアウトの作り直しになるため使いません）。ハンドルは `<button>` にして、フォーカス中は ← → キーで 16px ずつ変えられます。
 - ドックのスタイルは Tailwind のユーティリティではなく `app/globals.css` の通常の CSS で書きます。既存の `button { … }` などの要素セレクタがレイヤー外にあり、Tailwind のユーティリティより優先されるためです。
-- 閉じているときは右端に縦のタブ（アイコン＋「チャット」）だけ残します。開いている間は、同じ高さでパネルの左端に「閉じる」の縦タブを出します（開くときと閉じるときで押す場所を変えないため）。ヘッダーの閉じるボタンも残します。
+- 閉じているときは右端に縦のタブ（アイコン＋「チャット」）だけ残します。開いている間は、同じ高さでパネルの左端に「閉じる」の縦タブを出します。開くときと閉じるときで押す場所を変えないためです。ヘッダーの閉じるボタンも残します。
 - メッセージがまだ 1 件もないときは、入力欄を最下部に固定せず、説明と質問例のすぐ下に置きます（`.chat-ui.is-empty`）。空のパネルで入力欄だけが下に離れて見えるのを避けるためです。1 件目を送ったあとは最下部に戻します。
 - 640px 以下（既存のモバイル分岐と同じ幅）では `components/ui/sheet.tsx` を使い、下からのシート（高さ 88dvh）に切り替えます。閉じているときの入口は右下の丸いボタンです。
-- Markdown 表示には `marked` と `dompurify` を追加します（依存追加はこの 2 つ）。回答は箇条書きや強調を含む前提です。
+- Markdown 表示には `marked` と `dompurify` を追加します。依存に足すのはこの 2 つだけです。回答は箇条書きや強調を含む前提です。
 
 ### 7.3 ページ遷移をまたぐ復元（R7）
 
@@ -369,11 +369,11 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
 - 入力途中の文（入力のたびに保存）
 - 接続トークン（§5.6）
 
-生成中のジョブ id は localStorage に持ちません。`GET /threads/:id` の生成中メッセージが `jobId` を持っているので、そちらを使います（二重に持つと食い違ったときの扱いが要るため）。生成途中の本文も localStorage に持ちません（レビュー指摘 2）。本文の正本はブリッジのジョブとスレッドファイルにあり、復元は次の順で行います。
+生成中のジョブ id は localStorage に持ちません。`GET /threads/:id` の生成中メッセージが `jobId` を持っているので、そちらを使います。二重に持つと食い違ったときの扱いが要るためです。生成途中の本文も localStorage に持ちません（レビュー指摘 2）。本文の正本はブリッジのジョブとスレッドファイルにあり、復元は次の順で行います。
 
-1. マウント時に `GET /threads/:id` でスレッドを取得し、メッセージ一覧を描画する。生成中のメッセージは受信済み本文（ブリッジが 500 ms ごとに書き出したもの）と `jobId` を含む。
-2. `jobId` があれば `GET /jobs/:id/events` に接続する。最初の `snapshot.content` でそのメッセージの本文を置き換え（1 で得た本文より新しい）、以降の `delta` を追記する。
-3. 404 なら `GET /threads/:id` を取り直す。保存済みの `status` が `done` / `cancelled` / `error` ならそれを表示する（完了から 10 分以上経って戻ってきた場合がこれに当たる）。`streaming` のままで対応ジョブが無いときだけ `error`（「ブリッジが停止したため中断」）として表示する（§5.2 の契約と同じ）。
+1. マウント時に `GET /threads/:id` でスレッドを取得し、メッセージ一覧を描画します。生成中のメッセージは受信済み本文（ブリッジが 500 ms ごとに書き出したもの）と `jobId` を含みます。
+2. `jobId` があれば `GET /jobs/:id/events` に接続します。最初の `snapshot.content` でそのメッセージの本文を置き換え（1 で得た本文より新しいもの）、以降の `delta` を追記します。
+3. 404 なら `GET /threads/:id` を取り直します。保存済みの `status` が `done` / `cancelled` / `error` ならそれを表示します。完了から 10 分以上経って戻ってきた場合がこれに当たります。`streaming` のままで対応ジョブが無いときだけ `error`（「ブリッジが停止したため中断」）として表示します。§5.2 の契約と同じです。
 
 ブリッジ側のジョブはページ遷移で止まりません。遷移中に届いた分は `snapshot` に含まれるので、取りこぼしや二重表示は起きません。SSE が途中で切れたとき（`done` を受け取らずに終わった、または通信エラー）は 1 秒おきに 5 回まで接続し直し、そのたびに `snapshot` で本文を置き換えます。
 
@@ -383,7 +383,7 @@ description: ユーザーの全国図鑑の収集状況（捕獲・HOME送信・
 
 ドックを一度も開いておらず、トークンも保存していないブラウザでは、ブリッジへの通信を一切しません（背景同期も行いません。§6.3）。ドックを開いた時点で最初の `/health` を送ります。
 
-`/health` の応答を待つ間は「ブリッジに接続中…」を表示します。Chrome では最初の `/health` が許可ダイアログを出し、応答が保留になるため、1.5 秒経ったら「ブラウザの許可ダイアログで『許可』を押してください」に文言を変えます（fetch 自体は継続します）。fetch が失敗したら「ブリッジが起動していません」と表示し、次のコマンドと、トークン入力欄を出します。`navigator.permissions.query({ name: 'local-network-access' })` が使えるブラウザで状態が `denied` なら、サイト設定でリセットする案内に切り替えます。
+`/health` の応答を待つ間は「ブリッジに接続中…」を表示します。Chrome では最初の `/health` が許可ダイアログを出し、応答はユーザーが答えるまで保留です。1.5 秒経ったら文言を「ブラウザの許可ダイアログで『許可』を押してください」に変えます（fetch 自体はそのまま継続）。fetch が失敗したときの表示は「ブリッジが起動していません」で、起動コマンドとトークン入力欄を添えます。`navigator.permissions.query({ name: 'local-network-access' })` が使えるブラウザで状態が `denied` なら、サイト設定でリセットする案内に切り替えます。
 
 ```bash
 corepack pnpm chat
@@ -464,7 +464,7 @@ type ContextSnapshot = {      // chat/workspace/contexts/<contextId>/meta.json
 
 ### 9.2 継続セッションでの収集状況の扱い（レビュー指摘 3）
 
-skill で読んだ `collection.md` の内容は、継続中の CLI セッションの文脈に残ります。ここで「捕獲状態を変えてから同じ質問をする」と、古い内容で答える可能性があります。次の 3 段で防ぎます。
+skill で読んだ `collection.md` の内容は、継続中の CLI セッションの文脈に残ります。捕獲状態を変えてから同じ質問をすると、古い内容で答える可能性があるので、次の 3 段で防ぎます。
 
 1. **版を毎ターン渡す**: 発言ヘッダーに `収集状況の版: <contextId>` を必ず入れます（§6.4）。
 2. **変更時は再読込を明示する**: ブリッジは `thread.lastContextId` と今回の `contextId` を比べ、異なれば「収集状況は前回の質問から更新されています。収集状況に関する質問なら、答える前に data/collection.md を読み直してください。」の行を付けます。ジョブ cwd の `data/` は新しいスナップショットを指しているので、読み直せば新しい内容になります。
@@ -532,7 +532,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 
 フェーズ 2
 
-1. Codex アダプタ（V3〜V5・V10 は検証済み。`agent_message` 完了単位の表示で実装する）
+1. Codex アダプタ（V3〜V5・V10 は検証済みです。`agent_message` 完了単位で表示します）
 2. モバイル（Sheet）対応の調整
 3. 使用トークン表示、キャンセル時の中途保存
 
@@ -582,7 +582,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 - ブリッジ: `chat/bridge/bridge.test.mjs`（19 件、`corepack pnpm test` で実行）。`scripts/fake-claude.mjs`（stream-json を固定間隔で吐く偽 CLI）を `PATH` の先頭に置いた状態で、`/contexts` → `/threads` → `/messages` → `/jobs/:id/events` の流れ、途中接続時の `snapshot` に受信済み本文が全部入ること、未登録 `contextId` の 409、ジョブ cwd の 5 つのリンクが `realpath` で `chat/prompts/system.md`・`chat/skills/dex-compass-collection`・`chat/workspace/contexts/<contextId>` に解決すること、完了後 10 分経過でジョブが 404 になってもスレッドの `status` が `done` のまま残ること、起動時に `streaming` 残留メッセージが `error` に直されること、キャンセル、Origin 拒否、トークン不一致、タイムアウトを `node --test` で確認します。あわせて、2 ターン目の `--resume` と版が変わったときのヘッダー 3 行目、セッション消失時の転写方式への切り替え、モデル切替時の転写方式、同時実行の 429、Host 検査、`null` Origin、スナップショットの同一 id と GC、スレッド削除時のジョブ中止、ブリッジ停止時の `error` 記録を確認します。
 - `collection.md` 本文: `scripts/check-engine.mjs` で 1,025 行と行の書式を確認します。
 - フロント: 既存の `pnpm test` は engine 確認のみなので、`ChatDock` は手動確認のチェックリストを README に置きます（開閉、幅、生成中にページ遷移して本文が欠けないこと、チェック直後の質問が新しい収集状況を反映すること、サイト版と単一 HTML 版を同時に開いても互いの記録を上書きしないこと、履歴削除、未接続表示、モバイル幅）。
-- 型と lint: `corepack pnpm exec tsc --noEmit`、`corepack pnpm lint`、`corepack pnpm build`、`corepack pnpm build:html` を通します。lint は main の時点で `components/ui/*` と `hooks/use-mobile.ts` の 19 件のエラーで失敗しており、チャットで追加・変更したファイルのエラーは 0 件です。`*.test.mjs` だけ `typescript/no-floating-promises` を切っています（`node:test` の `test()` は await せずに並べる書き方のため）。
+- 型と lint: `corepack pnpm exec tsc --noEmit`、`corepack pnpm lint`、`corepack pnpm build`、`corepack pnpm build:html` を通します。lint は main の時点で `components/ui/*` と `hooks/use-mobile.ts` の 19 件のエラーで失敗しており、チャットで追加・変更したファイルのエラーは 0 件です。`*.test.mjs` だけ `typescript/no-floating-promises` を切っています。`node:test` の `test()` は await せずに並べる書き方だからです。
 
 ## 15. 追加・変更ファイル一覧
 

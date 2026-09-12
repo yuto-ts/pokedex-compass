@@ -57,17 +57,17 @@ Switch作品の入手場所：Serebii各種ページのLocations表。`data/mode
 
 ## ポケモン相談チャット（右サイドバー）
 
-全ページの右端にチャット欄があり、この Mac で動く `claude` CLI（Claude のサブスクリプション）に質問できます。API キーは使いません。設計は`docs/chat-sidebar.md`。
+全ページの右端にチャット欄があり、この Mac で動く `claude` CLI（Claude のサブスクリプション）に質問できます。API キーは使いません。設計は`docs/chat-sidebar.md`にまとめています。
 
 起動手順:
 
 1. `claude` にログイン済みであることを確認する（`claude -p "hi"` が応答すれば可）。
-2. リポジトリで `corepack pnpm chat` を実行する。ブリッジが `http://127.0.0.1:47117` で待ち受け、接続トークンを表示します（`chat/workspace/.token` にも保存）。
-3. サイト右端の「チャット」を開き、接続トークンを1回だけ入力する。トークンはそのブラウザのlocalStorageに保存されます。
-4. https のサイト版では、最初の接続時にChromeの「ローカル ネットワークへのアクセス」ダイアログが出るので「許可」を押す。
+2. リポジトリで `corepack pnpm chat` を実行します。ブリッジが `http://127.0.0.1:47117` で待ち受け、接続トークンを表示します（`chat/workspace/.token` にも保存）。
+3. サイト右端の「チャット」を開き、接続トークンを1回だけ入力します。トークンはそのブラウザのlocalStorageに保存されます。
+4. https のサイト版では、最初の接続時にChromeの「ローカル ネットワークへのアクセス」ダイアログが出るので「許可」を押します。
 
-- システムプロンプトは`chat/prompts/system.md`、収集状況skillは`chat/skills/dex-compass-collection/SKILL.md`。編集は次の質問から反映され、再起動は不要です。
-- ポート・許可Origin・モデル一覧は`chat/config.json`。サイト版のドメインは`allowedOrigins`に追加してください。単一HTML版（`file://`）から使う場合は`allowNullOrigin`を`true`にします。
+- システムプロンプトは`chat/prompts/system.md`、収集状況skillは`chat/skills/dex-compass-collection/SKILL.md`です。編集は次の質問から反映され、再起動は不要です。
+- ポート・許可Origin・モデル一覧は`chat/config.json`にあります。サイト版のドメインは`allowedOrigins`に追加してください。単一HTML版（`file://`）から使う場合は`allowNullOrigin`を`true`にします。
 - 収集状況はブラウザがブリッジへ送った版（`chat/workspace/contexts/`）をAIがskillで読みます。チェック直後の質問は、送信前に最新の状態を同期してから送ります。
 
 制約:
@@ -87,12 +87,12 @@ Switch作品の入手場所：Serebii各種ページのLocations表。`data/mode
 - [ ] 捕獲チェックを付けた直後の質問に、新しい収集状況で答える
 - [ ] サイト版と単一HTML版を同時に開いても、互いの収集状況を上書きしない（保存元が別の版になる）
 - [ ] 履歴から再開・削除（確認ダイアログあり）ができる
-- [ ] ブリッジ停止中は起動コマンドとトークン入力の案内が出る。生成中にブリッジが止まった回答は「ブリッジが停止したため中断しました」になる
+- [ ] ブリッジ停止中は起動コマンドとトークン入力の案内が出ます。生成中にブリッジが止まった回答は「ブリッジが停止したため中断しました」になる
 - [ ] 640px以下では下からのシートで開く
 
 ## Cloudflareへのデプロイ
 
-`corepack pnpm run deploy`でビルドし、Worker `pokedex-compass`としてデプロイします。D1の接続先：`vite.config.ts`の`d1_databases`。
+`corepack pnpm run deploy`でビルドし、Worker `pokedex-compass`としてデプロイします。D1の接続先は`vite.config.ts`の`d1_databases`で指定します。
 
 アクセス制限：Cloudflare Access。APIはAccessが付与するJWT（`Cf-Access-Jwt-Assertion`）を`jose`で検証します。`vite.config.ts`の`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD`が未設定なら、APIはすべて403。
 ローカルの`corepack pnpm dev`では検証を省略し、D1はMiniflareのローカルDBを使用。
