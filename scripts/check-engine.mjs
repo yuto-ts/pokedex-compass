@@ -136,3 +136,11 @@ assert.match(table, /- 捕獲: 1 \/ 1025（未捕獲 1024）/);
 console.log(
   `PASS: chat collection.md lists 1,025 rows (${Buffer.byteLength(table)} bytes, ${table.length} chars).`,
 );
+const { modelLabel } = loadTs('../lib/chat/models.ts');
+assert.equal(modelLabel('claude-haiku-4-5-20251001'), 'Haiku 4.5');
+assert.equal(modelLabel('claude-sonnet-5'), 'Sonnet 5');
+assert.equal(modelLabel('claude-fable-5-1'), 'Fable 5.1');
+assert.equal(modelLabel('gpt-5.5'), 'GPT-5.5');
+assert.equal(modelLabel('gpt-5.6-luna'), 'GPT-5.6 Luna');
+assert.equal(modelLabel('mystery-model'), 'mystery-model');
+console.log('PASS: chat model labels shorten known ids and keep unknown ones.');

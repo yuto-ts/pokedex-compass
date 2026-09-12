@@ -16,7 +16,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { contextIdOf } from './contexts.mjs';
 import { CONTEXT_CHANGED, SKILL, buildTranscript } from './jobs.mjs';
-import { createBridge } from './server.mjs';
+import { createBridge, hostAllowlist, resolveConfig } from './server.mjs';
 import { INTERRUPTED } from './threads.mjs';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -737,6 +737,37 @@ test('deleting a thread cancels its job and removes the file', async () => {
   assert.equal(job.body.status, 'cancelled');
   assert.equal((await b.api('GET', `/threads/${threadId}`)).status, 404);
   assert.equal((await b.api('DELETE', `/threads/${threadId}`)).status, 404);
+});
+
+test('extra bind addresses and origins come from the config and the env', () => {
+  const base = { port: 47117, allowedOrigins: ['http://localhost:3000'] };
+  assert.deepEqual(resolveConfig(base, {}).bindHosts, ['127.0.0.1']);
+  const resolved = resolveConfig(
+    { ...base, extraBindHosts: ['100.64.0.1'] },
+    {
+      CHAT_BRIDGE_HOSTS: '100.64.0.2, 127.0.0.1',
+      CHAT_ALLOWED_ORIGINS: 'http://100.64.0.1:3000',
+    },
+  );
+  assert.deepEqual(resolved.bindHosts, [
+    '127.0.0.1',
+    '100.64.0.1',
+    '100.64.0.2',
+  ]);
+  assert.deepEqual(resolved.allowedOrigins, [
+    'http://localhost:3000',
+    'http://100.64.0.1:3000',
+  ]);
+  // Every bound address answers to its own Host header; localhost always does.
+  assert.deepEqual(
+    [...hostAllowlist(resolved.bindHosts, 47117)],
+    [
+      '127.0.0.1:47117',
+      '100.64.0.1:47117',
+      '100.64.0.2:47117',
+      'localhost:47117',
+    ],
+  );
 });
 
 test('transcript keeps the newest messages within the limits', () => {

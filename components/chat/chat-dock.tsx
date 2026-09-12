@@ -10,6 +10,7 @@ import {
   SquarePen,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { modelLabel } from '@/lib/chat/models';
 import {
   MAX_WIDTH,
   MIN_WIDTH,
@@ -72,7 +73,7 @@ function ModelBar({ chat, prefs }: { chat: Chat; prefs: ChatPrefs }) {
       >
         {provider?.models.map((m) => (
           <option key={m} value={m}>
-            {m}
+            {modelLabel(m)}
           </option>
         ))}
       </select>

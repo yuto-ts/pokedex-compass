@@ -1,8 +1,31 @@
 // fetch / SSE client for the local chat bridge (docs/chat-sidebar.md §5.2).
+import { useSyncExternalStore } from 'react';
 import config from '@/chat/config.json';
 import { getPrefs } from './store';
 
-export const BRIDGE_URL = `http://127.0.0.1:${config.port}`;
+const LOOPBACK = `http://127.0.0.1:${config.port}`;
+
+// The bridge runs on the machine that serves the page. Loopback covers
+// localhost, `file://` and the deployed https site; a page served over http
+// from another address (a Tailscale address, say) reaches the bridge at that
+// same address, so a phone on the tailnet can use it too (§5.6).
+export function bridgeUrl() {
+  if (typeof location === 'undefined') return LOOPBACK;
+  const { hostname, protocol } = location;
+  if (
+    protocol !== 'http:' ||
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1'
+  )
+    return LOOPBACK;
+  return `http://${hostname}:${config.port}`;
+}
+
+const noSubscribe = () => () => {};
+
+// Renders the same text on the server as before hydration.
+export const useBridgeUrl = () =>
+  useSyncExternalStore(noSubscribe, bridgeUrl, () => LOOPBACK);
 
 export type ProviderInfo = {
   id: string;
@@ -86,7 +109,7 @@ async function call<T>(
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(BRIDGE_URL + path, {
+    res = await fetch(bridgeUrl() + path, {
       method: init.method ?? 'GET',
       headers: {
         authorization: `Bearer ${getPrefs().token}`,
@@ -121,7 +144,7 @@ export const bridge = {
   async health(): Promise<Health> {
     let res: Response;
     try {
-      res = await fetch(BRIDGE_URL + '/health');
+      res = await fetch(bridgeUrl() + '/health');
     } catch {
       throw new BridgeError(0, 'unreachable', UNREACHABLE);
     }
@@ -182,7 +205,7 @@ export async function streamJob(
   onEvent: (e: JobEvent) => void,
   signal: AbortSignal,
 ): Promise<'done' | 'gone' | 'closed'> {
-  const res = await fetch(`${BRIDGE_URL}/jobs/${jobId}/events`, {
+  const res = await fetch(`${bridgeUrl()}/jobs/${jobId}/events`, {
     headers: { authorization: `Bearer ${getPrefs().token}` },
     signal,
   });

@@ -70,9 +70,24 @@ Switch作品の入手場所：Serebii各種ページのLocations表。`data/mode
 - ポート・許可Origin・モデル一覧は`chat/config.json`にあります。サイト版のドメインは`allowedOrigins`に追加してください。単一HTML版（`file://`）から使う場合は`allowNullOrigin`を`true`にします。
 - 収集状況はブラウザがブリッジへ送った版（`chat/workspace/contexts/`）をAIがskillで読みます。チェック直後の質問は、送信前に最新の状態を同期してから送ります。
 
+同じMac以外（iPhoneなど）から使う場合:
+
+ブリッジは既定で`127.0.0.1`だけを待ち受けます。同じtailnet（Tailscale）のiPhoneなどから使うときは、待ち受けアドレスと許可Originを足して起動します。
+
+```bash
+CHAT_BRIDGE_HOSTS=$(tailscale ip -4) CHAT_ALLOWED_ORIGINS=http://$(tailscale ip -4):3000 corepack pnpm chat
+```
+
+開発サーバーもそのアドレスで待ち受けさせます（`corepack pnpm dev -- -H $(tailscale ip -4)`）。あとは端末のブラウザで`http://<tailscaleのIP>:3000/`を開き、同じ接続トークンを1回入力すれば使えます。ドックはページのホストからブリッジの接続先を決めるので、設定は不要です。
+
+- 追加したアドレスの範囲（tailnet内のあなたの端末）からブリッジAPIに到達できるようになります。守りはトークン・Origin許可リスト・Host検査の3つです。
+- `0.0.0.0`では待ち受けないので、足していないネットワーク（公衆Wi-Fiなど）からは届きません。
+- 個人のアドレスをgitに入れずに済むよう、環境変数で渡す形にしています。恒久的に設定する場合は`chat/config.json`の`extraBindHosts`と`allowedOrigins`に書けます。
+- Viteのホスト検査があるため、MagicDNSの名前ではなくIPで開いてください。名前で開くには`vite.config.ts`に`server.allowedHosts`が要ります。
+
 制約:
 
-- ブリッジはローカル限定です。Cloudflare上のサイト版でも、チャットはブラウザと同じMacのブリッジに接続します。
+- ブリッジはこのMacで動きます。Cloudflare上のサイト版でも、チャットはブラウザと同じMac（またはtailnet越しの同じMac）のブリッジに接続します。
 - 履歴は`chat/workspace/history/`（Macごと）に保存され、別のMacとは共有されません。`chat/workspace/`はgit管理外です。
 - 対応ブラウザはChromeです。Safariは確認していません。
 - ChatGPT（Codex CLI）はフェーズ2で対応予定のため、選択肢には出ますが選べません。

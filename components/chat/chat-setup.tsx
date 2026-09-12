@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
-import { BRIDGE_URL } from '@/lib/chat/client';
+import { useBridgeUrl } from '@/lib/chat/client';
 import { setPrefs } from '@/lib/chat/store';
 import type { Auth, Conn } from './use-chat';
 
@@ -64,6 +64,7 @@ export function ChatSetup({
   token: string;
   onRetry: () => void;
 }) {
+  const bridge = useBridgeUrl();
   if (conn.kind === 'checking')
     return (
       <div className="chat-setup">
@@ -127,7 +128,7 @@ export function ChatSetup({
         </p>
         <Command />
         <p className="chat-note">
-          接続先: {BRIDGE_URL}。対応ブラウザは Chrome です。
+          接続先: {bridge}。対応ブラウザは Chrome です。
         </p>
         <button type="button" onClick={onRetry}>
           再接続
@@ -139,7 +140,7 @@ export function ChatSetup({
     <div className="chat-setup">
       <TokenForm auth={auth} token={token} />
       <p className="chat-note">
-        接続先: {BRIDGE_URL}。質問はこの Mac の claude
+        接続先: {bridge}。質問はこの Mac の claude
         CLI（サブスクリプション）で処理され、履歴もこの Mac に保存されます。
       </p>
     </div>

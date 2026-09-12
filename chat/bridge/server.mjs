@@ -16,6 +16,37 @@ const MAX_BODY = 2 * 1024 * 1024;
 const MAX_PROMPT = 8000;
 const IMPLEMENTED = { claude };
 
+const list = (value) =>
+  String(value ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+// Loopback is always bound. Further addresses (a Tailscale address, say) come
+// from `extraBindHosts` in chat/config.json or the CHAT_BRIDGE_HOSTS env var,
+// and the origins that may talk to them from CHAT_ALLOWED_ORIGINS — the env
+// vars keep a personal address out of git (§5.6).
+export function resolveConfig(config, env = process.env) {
+  return {
+    ...config,
+    bindHosts: [
+      ...new Set([
+        '127.0.0.1',
+        ...(config.extraBindHosts ?? []),
+        ...list(env.CHAT_BRIDGE_HOSTS),
+      ]),
+    ],
+    allowedOrigins: [
+      ...new Set([...config.allowedOrigins, ...list(env.CHAT_ALLOWED_ORIGINS)]),
+    ],
+  };
+}
+
+// Host header values the bridge answers to (DNS rebinding guard).
+export function hostAllowlist(bindHosts, port) {
+  return new Set([...bindHosts, 'localhost'].map((h) => `${h}:${port}`));
+}
+
 export function findExecutable(name, path = '') {
   for (const dir of path.split(delimiter)) {
     if (!dir) continue;
@@ -155,8 +186,9 @@ export async function createBridge({
       throw new HttpError(400, 'bad_model', `未登録のモデルです: ${model}`);
   }
 
+  const bindHosts = config.bindHosts ?? ['127.0.0.1'];
   let port = config.port;
-  const hosts = () => [`127.0.0.1:${port}`, `localhost:${port}`];
+  let allowedHosts = hostAllowlist(bindHosts, port);
 
   async function handle(req, res) {
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -179,8 +211,8 @@ export async function createBridge({
       res.end(JSON.stringify(body));
     };
 
-    // DNS rebinding: only requests addressed to the loopback name are served.
-    if (!hosts().includes(req.headers.host ?? ''))
+    // DNS rebinding: only requests addressed to a bound address are served.
+    if (!allowedHosts.has(req.headers.host ?? ''))
       return send(403, { error: 'host_not_allowed' });
 
     const originAllowed =
@@ -330,7 +362,7 @@ export async function createBridge({
     throw new HttpError(404, 'not_found');
   }
 
-  const server = createServer((req, res) => {
+  const handler = (req, res) => {
     handle(req, res).catch((e) => {
       if (res.headersSent) return res.end();
       const status = e instanceof HttpError ? e.status : 500;
@@ -353,35 +385,50 @@ export async function createBridge({
         }),
       );
     });
-  });
+  };
+
+  // One server per bound address, so the bridge is reachable only on the
+  // addresses that were asked for.
+  const servers = bindHosts.map(() => createServer(handler));
 
   return {
-    server,
+    servers,
+    bindHosts,
     token,
     jobs,
     threads,
     contexts,
     async listen(p = config.port) {
-      await new Promise((ok, fail) => {
-        server.once('error', fail);
-        server.listen(p, '127.0.0.1', ok);
-      });
-      port = server.address().port;
+      for (const [i, server] of servers.entries()) {
+        const host = bindHosts[i];
+        await new Promise((ok, fail) => {
+          const onError = (e) => fail(Object.assign(e, { host }));
+          server.once('error', onError);
+          server.listen(i === 0 ? p : port, host, () => {
+            server.off('error', onError);
+            ok();
+          });
+        });
+        if (i === 0) port = server.address().port;
+      }
+      allowedHosts = hostAllowlist(bindHosts, port);
       return port;
     },
     async close() {
       clearInterval(gcTimer);
       await jobs.shutdown();
-      server.closeAllConnections();
-      await new Promise((ok) => server.close(() => ok()));
+      for (const server of servers) {
+        server.closeAllConnections();
+        await new Promise((ok) => server.close(() => ok()));
+      }
     },
   };
 }
 
 async function main() {
   const root = resolve(import.meta.dirname, '../..');
-  const config = JSON.parse(
-    readFileSync(join(root, 'chat/config.json'), 'utf8'),
+  const config = resolveConfig(
+    JSON.parse(readFileSync(join(root, 'chat/config.json'), 'utf8')),
   );
   const bridge = await createBridge({
     root,
@@ -391,14 +438,17 @@ async function main() {
   const port = await bridge.listen().catch((e) => {
     console.error(
       e.code === 'EADDRINUSE'
-        ? `ポート ${config.port} は使用中です。ブリッジが既に起動していないか確認してください。`
-        : e.message,
+        ? `${e.host}:${config.port} は使用中です。ブリッジが既に起動していないか確認してください。`
+        : e.code === 'EADDRNOTAVAIL'
+          ? `${e.host} はこの Mac のアドレスではありません。CHAT_BRIDGE_HOSTS を確認してください。`
+          : e.message,
     );
     process.exit(1);
   });
   console.error(
     [
-      `DEX COMPASS chat bridge: http://127.0.0.1:${port}`,
+      'DEX COMPASS chat bridge:',
+      ...config.bindHosts.map((h) => `  http://${h}:${port}`),
       `接続トークン: ${bridge.token}`,
       '（chat/workspace/.token に保存済み。ドックの設定欄に 1 回だけ入力してください）',
       `許可 Origin: ${config.allowedOrigins.join(', ')}${config.allowNullOrigin ? ', null' : ''}`,

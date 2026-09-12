@@ -1,6 +1,7 @@
 {
   "port": 47117,
   "allowedOrigins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+  "extraBindHosts": [],
   "allowNullOrigin": false,
   "maxConcurrentJobs": 1,
   "timeoutMs": 180000,

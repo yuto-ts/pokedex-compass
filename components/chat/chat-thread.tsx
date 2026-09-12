@@ -16,6 +16,7 @@ import {
   MessageScrollerViewport,
 } from '@/components/ui/message-scroller';
 import type { ChatMessage, Thread } from '@/lib/chat/client';
+import { modelLabel } from '@/lib/chat/models';
 
 if (DOMPurify.isSupported)
   DOMPurify.addHook('afterSanitizeAttributes', (node) => {
@@ -58,7 +59,7 @@ function Footer({ m, tool }: { m: ChatMessage; tool: string }) {
       </MessageFooter>
     );
   return m.model ? (
-    <MessageFooter className="chat-meta">{m.model}</MessageFooter>
+    <MessageFooter className="chat-meta">{modelLabel(m.model)}</MessageFooter>
   ) : null;
 }
 
