@@ -1426,9 +1426,17 @@ footer p {
   html.chat-open body {
     padding-right: var(--chat-width);
   }
-  html.chat-open .chat-tab {
+  html.chat-open .chat-tab:not(.chat-close-tab) {
     display: none;
   }
+  html.chat-open .chat-close-tab {
+    display: inline-flex;
+    right: var(--chat-width);
+  }
+}
+/* Shown only while the dock is open, in the place the open tab occupied. */
+.chat-close-tab {
+  display: none;
 }
 .chat-tab {
   position: fixed;
@@ -1655,6 +1663,11 @@ html.chat-open .chat-dock {
   padding: 20px 16px;
   color: #66717c;
   line-height: 1.7;
+}
+/* No messages yet: nothing grows, so the input sits under the intro and the
+   free space falls below it. */
+.chat-ui.is-empty .chat-empty {
+  flex: 0 0 auto;
 }
 .chat-examples {
   display: grid;

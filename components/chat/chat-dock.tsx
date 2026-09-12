@@ -95,8 +95,11 @@ function Panel({
   const showSetup = !chat.authed || view === 'settings';
   const noProvider = ready && !pickModel(chat.providers, prefs).provider;
   const toggle = (v: View) => setView(view === v ? 'chat' : v);
+  // Before the first message the composer follows the intro instead of
+  // sitting at the bottom of an empty panel.
+  const empty = !showSetup && view === 'chat' && !chat.thread?.messages.length;
   return (
-    <div className="chat-ui">
+    <div className={empty ? 'chat-ui is-empty' : 'chat-ui'}>
       <div className="chat-head">
         <b>ポケモン相談</b>
         <div className="chat-actions">
@@ -252,6 +255,18 @@ export default function ChatDock() {
       <span>チャット</span>
     </button>
   );
+  // Sits where the open tab was, on the panel edge (desktop only).
+  const closeTab = (
+    <button
+      type="button"
+      className="chat-tab chat-close-tab"
+      aria-label="チャットを閉じる"
+      onClick={() => setPrefs({ open: false })}
+    >
+      <PanelRightClose size={18} />
+      <span>閉じる</span>
+    </button>
+  );
   const panel = (
     <Panel chat={chat} prefs={prefs} view={view} setView={setView} />
   );
@@ -276,6 +291,7 @@ export default function ChatDock() {
   return (
     <>
       {tab}
+      {closeTab}
       <aside className="chat-dock" aria-label="ポケモン相談チャット">
         <ResizeHandle width={prefs.width} />
         {panel}
