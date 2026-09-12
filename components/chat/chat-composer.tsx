@@ -13,6 +13,7 @@ export function ChatComposer({
   streaming,
   error,
   disabledReason,
+  enterSends,
   onSend,
   onCancel,
 }: {
@@ -21,6 +22,7 @@ export function ChatComposer({
   streaming: boolean;
   error: string;
   disabledReason: string;
+  enterSends: boolean;
   onSend: () => void;
   onCancel: () => void;
 }) {
@@ -53,12 +55,19 @@ export function ChatComposer({
       )}
       <Textarea
         aria-label="質問を入力"
-        placeholder="ポケモンについて質問（Enter で送信、Shift+Enter で改行）"
+        placeholder={
+          enterSends
+            ? 'ポケモンについて質問（Enter で送信、Shift+Enter で改行）'
+            : 'ポケモンについて質問'
+        }
         value={draft}
         disabled={sending !== 'idle'}
         maxLength={MAX}
+        // On a phone the return key inserts a newline; the button sends.
+        enterKeyHint={enterSends ? 'send' : 'enter'}
         onChange={(e) => setPrefs({ draft: e.target.value })}
         onKeyDown={(e) => {
+          if (!enterSends) return;
           // isComposing: Enter that confirms IME conversion must not send.
           if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();

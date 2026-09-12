@@ -1843,10 +1843,34 @@ html.chat-open .chat-dock {
   padding: 0;
   border-radius: 14px 14px 0 0;
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 @media (max-width: 640px) {
   .chat-dock {
     display: none !important;
+  }
+  /* Pin the sheet to the visible area. With the keyboard open the visual
+     viewport shrinks, so the input stays above it instead of behind it, and
+     the panel no longer jumps when Safari's toolbars slide in and out. */
+  .chat-sheet {
+    top: calc(var(--chat-vvtop, 0px) + 12px);
+    bottom: auto;
+    height: calc(var(--chat-vvh, 92dvh) - 12px);
+  }
+  /* Anything below 16px makes iOS Safari zoom the page on focus. */
+  .chat-composer textarea,
+  .chat-token input,
+  .chat-models select {
+    font-size: 16px;
+  }
+  .chat-models select {
+    height: 36px;
+  }
+  .chat-composer {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .chat-ui button.chat-send {
+    padding: 10px;
   }
   .chat-tab {
     top: auto;

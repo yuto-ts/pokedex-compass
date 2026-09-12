@@ -1,7 +1,13 @@
 'use client';
 // Right-hand chat dock (docs/chat-sidebar.md §7). Rendered next to the page
 // in app/layout.tsx and standalone/main.tsx, so it is independent of DexApp.
-import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import {
   History,
   MessageCircle,
@@ -86,11 +92,13 @@ function Panel({
   prefs,
   view,
   setView,
+  mobile,
 }: {
   chat: Chat;
   prefs: ChatPrefs;
   view: View;
   setView: (v: View) => void;
+  mobile: boolean;
 }) {
   const ready = chat.conn.kind === 'ready';
   const showSetup = !chat.authed || view === 'settings';
@@ -183,6 +191,7 @@ function Panel({
             streaming={chat.streaming}
             error={chat.error}
             disabledReason={noProvider ? '利用できる AI がありません' : ''}
+            enterSends={!mobile}
             onSend={chat.send}
             onCancel={chat.cancel}
           />
@@ -245,6 +254,27 @@ export default function ChatDock() {
     root.style.setProperty('--chat-width', `${p.width}px`);
   }, [prefs.open, prefs.width]);
 
+  // The sheet follows the visual viewport, so the composer stays above the
+  // on-screen keyboard and the panel does not jump when Safari's toolbars
+  // slide in and out.
+  useEffect(() => {
+    const vv =
+      typeof window === 'undefined' ? undefined : window.visualViewport;
+    if (!mobile || !prefs.open || !vv) return;
+    const apply = () => {
+      const root = document.documentElement.style;
+      root.setProperty('--chat-vvh', `${vv.height}px`);
+      root.setProperty('--chat-vvtop', `${vv.offsetTop}px`);
+    };
+    apply();
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    return () => {
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+    };
+  }, [mobile, prefs.open]);
+
   const tab = (
     <button
       type="button"
@@ -269,7 +299,13 @@ export default function ChatDock() {
     </button>
   );
   const panel = (
-    <Panel chat={chat} prefs={prefs} view={view} setView={setView} />
+    <Panel
+      chat={chat}
+      prefs={prefs}
+      view={view}
+      setView={setView}
+      mobile={mobile}
+    />
   );
 
   if (mobile)
