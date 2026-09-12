@@ -83,12 +83,13 @@ export async function* run({
       result = msg;
       if (msg.session_id) yield { type: 'meta', cliSessionId: msg.session_id };
       const u = msg.usage ?? {};
+      // The three input figures are disjoint here: `input_tokens` counts only
+      // what was processed anew this turn (§7).
       yield {
         type: 'usage',
-        inputTokens:
-          (u.input_tokens ?? 0) +
-          (u.cache_read_input_tokens ?? 0) +
-          (u.cache_creation_input_tokens ?? 0),
+        inputTokens: u.input_tokens ?? 0,
+        cacheReadTokens: u.cache_read_input_tokens ?? 0,
+        cacheWriteTokens: u.cache_creation_input_tokens ?? 0,
         outputTokens: u.output_tokens ?? 0,
       };
     }

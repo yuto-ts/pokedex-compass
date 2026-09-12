@@ -38,7 +38,14 @@ export type ProviderInfo = {
 export type Health = { version: number; providers: ProviderInfo[] };
 export type Page = { view: string; pokemonId?: number; label: string };
 export type MessageStatus = 'done' | 'streaming' | 'cancelled' | 'error';
-export type Usage = { inputTokens?: number; outputTokens?: number };
+// The three input figures are disjoint (§7). Messages written before the
+// breakdown existed have only inputTokens, and it holds the total there.
+export type Usage = {
+  inputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  outputTokens?: number;
+};
 export type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';

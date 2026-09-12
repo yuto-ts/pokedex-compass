@@ -85,9 +85,16 @@ export async function* run({
       yield { type: 'delta', text: String(msg.item.text) };
     } else if (msg.type === 'turn.completed') {
       const u = msg.usage ?? {};
+      // `cached_input_tokens` is part of `input_tokens` (V14), so subtract it
+      // to get the same "new input" figure the Claude adapter reports.
+      // Whether `cache_write_input_tokens` also overlaps is unverified: it was
+      // 0 in every run recorded so far.
+      const cacheRead = u.cached_input_tokens ?? 0;
       yield {
         type: 'usage',
-        inputTokens: u.input_tokens ?? 0,
+        inputTokens: Math.max(0, (u.input_tokens ?? 0) - cacheRead),
+        cacheReadTokens: cacheRead,
+        cacheWriteTokens: u.cache_write_input_tokens ?? 0,
         outputTokens: u.output_tokens ?? 0,
       };
     } else if (msg.type === 'turn.failed' || msg.type === 'error') {

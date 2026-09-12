@@ -225,6 +225,8 @@ export function createJobManager({
             } else if (ev.type === 'usage') {
               job.usage = {
                 inputTokens: ev.inputTokens,
+                cacheReadTokens: ev.cacheReadTokens,
+                cacheWriteTokens: ev.cacheWriteTokens,
                 outputTokens: ev.outputTokens,
               };
             }

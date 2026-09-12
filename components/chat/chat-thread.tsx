@@ -15,7 +15,7 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from '@/components/ui/message-scroller';
-import type { ChatMessage, Thread } from '@/lib/chat/client';
+import type { ChatMessage, Thread, Usage } from '@/lib/chat/client';
 import { modelLabel } from '@/lib/chat/models';
 
 if (DOMPurify.isSupported)
@@ -48,12 +48,27 @@ const toolLabel: Record<string, string> = {
 const tokens = (n?: number) =>
   n === undefined ? '' : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
+// The input is split because the cached part dominates the total and is not
+// what the turn actually re-processed (§7). Messages saved before the split
+// carry the total in inputTokens, so those keep the old wording.
+function inputText(u: Usage) {
+  if (u.cacheReadTokens === undefined && u.cacheWriteTokens === undefined)
+    return `入力 ${tokens(u.inputTokens)}`;
+  return `入力 ${[
+    `新規 ${tokens(u.inputTokens ?? 0)}`,
+    u.cacheWriteTokens ? `キャッシュ書込 ${tokens(u.cacheWriteTokens)}` : '',
+    u.cacheReadTokens ? `読込 ${tokens(u.cacheReadTokens)}` : '',
+  ]
+    .filter(Boolean)
+    .join('・')}`;
+}
+
 // Shown under a finished answer: which model wrote it and what it cost.
 function usageText(m: ChatMessage) {
   const parts = [m.model ? modelLabel(m.model) : ''];
   if (m.usage)
     parts.push(
-      `入力 ${tokens(m.usage.inputTokens)} / 出力 ${tokens(m.usage.outputTokens)} トークン`,
+      `${inputText(m.usage)} / 出力 ${tokens(m.usage.outputTokens)} トークン`,
     );
   return parts.filter(Boolean).join(' · ');
 }

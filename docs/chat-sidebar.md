@@ -6,6 +6,7 @@
 改訂: 2026-09-12 PR #1 の設計レビュー（4 件）を反映。§5.2・§5.5・§6.4・§7.3・§8・§9 を書き直し、§13 に V9〜V11 を追加
 改訂 2: 2026-09-12 再レビュー（2 件）を反映。§5.5 のリンク先パス、§5.2・§7.3 の 404 時の扱いを修正
 改訂 3: 2026-09-12 §13 のうち事前確認できる 8 件（V1〜V5・V7・V9・V10）を実機で検証し結果を反映。`--bare` を撤回、`--add-dir` と `--ignore-user-config` を追加
+改訂 9: 2026-09-13 使用トークンの表示を入力の内訳に変えました（§5.2、§7.2、§7.3、§10）。合計 1 つでは、実際にその回で処理された量とキャッシュから読んだ量の区別が付かなかったためです
 改訂 8: 2026-09-12 AI に渡す文書を圧縮しました（§6.2）。1 種 1 行の表をやめ、記録を全国図鑑 No. の範囲で書きます。`collection.md` は 33,876 バイトから約 1,900 バイト、`routes.md` は 56,019 バイトから 6,378 バイトになりました
 改訂 7: 2026-09-12 フェーズ 2 を実装しました（Codex アダプタ、使用トークン表示、キャンセル時の表示、モバイルの調整）。実測に合わせて §5.3 の Codex の起動コマンドを直し、§13 に V14 を追加しました
 改訂 6: 2026-09-12 チャットが読める範囲を、収集状況だけでなくサイトが出している情報全体に広げました（§5.4、§5.5、§6.2）。おすすめ攻略ルートと Bank 終了対策をスナップショットに加え、作品別の入手方法・進化条件・サイトの説明を静的な参照データとして生成します。skill を 2 つに分け、システムプロンプトに読み手の前提を書きました（§6.1）
@@ -177,7 +178,13 @@ interface Provider {
     | { type: 'delta'; text: string }
     | { type: 'status'; kind: 'tool'; name: string }
     | { type: 'meta'; cliSessionId?: string }
-    | { type: 'usage'; inputTokens?: number; outputTokens?: number }
+    | {
+        type: 'usage';
+        inputTokens?: number;      // 新しく処理した入力。キャッシュ分を含まない
+        cacheReadTokens?: number;  // キャッシュから読んだ入力
+        cacheWriteTokens?: number; // キャッシュに書いた入力
+        outputTokens?: number;
+      }
   >;
 }
 ```
@@ -410,6 +417,7 @@ R3 の反転は、収集が進んだ人ほど効きます。全種を捕獲し�
 - 640px 以下（既存のモバイル分岐と同じ幅）では `components/ui/sheet.tsx` を使い、下からのシート（高さ 88dvh）に切り替えます。閉じているときの入口は右下の丸いボタンです。
 - モデルの選択欄と回答の下には短い表示名を出します。`claude-haiku-4-5-20251001` なら「Haiku 4.5」、`gpt-5.6-luna` なら「GPT-5.6 Luna」です。CLI に渡すのは `chat/config.json` の id のままで、短縮は表示だけです。形が合わない id はそのまま表示します。
 - Markdown 表示には `marked` と `dompurify` を追加します。依存に足すのはこの 2 つだけです。回答は箇条書きや強調を含む前提です。
+- 回答が終わったら、その下に使ったモデルとトークン数を出します。書き方は「Haiku 4.5 · 入力 新規 36・キャッシュ書込 11.5k・読込 35.0k / 出力 1.0k トークン」です。入力を 3 つに割るのは、合計だけだと毎回 3 万トークン超に見えるのに、実際にその回で処理されたのは「新規」と「書込」の分だけで、桁が 2 つ違うためです。0 の項目は省きます。内訳を持たない古いメッセージ（表示を分ける前に保存したもの）は「入力 &lt;合計&gt;」と出します。
 
 ### 7.3 ページ遷移をまたぐ復元（R7）
 
@@ -471,7 +479,10 @@ type Message = {
   page?: { view: string; pokemonId?: number; label: string };  // user のみ
   provider?: string;          // assistant のみ。途中で切り替えた場合の記録
   model?: string;
-  usage?: { inputTokens?: number; outputTokens?: number };  // assistant のみ。inputTokens はキャッシュ読込・作成分を含む合計
+  usage?: {                   // assistant のみ。3 つの入力は重複しない内訳
+    inputTokens?: number; cacheReadTokens?: number;
+    cacheWriteTokens?: number; outputTokens?: number;
+  };
   createdAt: string;
 };
 
@@ -532,7 +543,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 
 - Claude: `stream-json` の各行を JSON として読み、`type === 'stream_event'` かつ `event.type === 'content_block_delta'` かつ `event.delta.type === 'text_delta'` の `text` を `delta` に変換します。`event.type === 'content_block_start'` で `content_block.type === 'tool_use'` なら `status` を出します。`parent_tool_use_id` が付いた行（サブエージェント内の出力）は使いません。`system` / `init` と `result` の `session_id` を `cliSessionId` にし、`result` で `usage`、`is_error` を取ります。行が JSON として壊れていたら捨てて続行し、`is_error` か非 0 終了で本文が空なら `error` にします（エラー文は `result.result`、なければ stderr の末尾 3 行）。本文が 1 文字でもあれば `done` として残します。
 - ツール呼び出しの前後で本文が続くとき（「確認します」→ skill → 回答）は、前の本文の後に `\n\n` を挟んでから次の本文を流します。挟まないと 2 つの文が段落なしでつながるためです。
-- Codex: `--json` の各行の `type` を見て、`item.completed` かつ `item.type === 'agent_message'` の `text` を流します。`thread.started` の `thread_id` を `cliSessionId` にします。`turn.completed` の `usage.input_tokens` と `usage.output_tokens` を使います（`cached_input_tokens` は `input_tokens` の内訳なので足しません。V14）。トークン単位の delta イベントは無いので（V3）、`item.completed` ごとに 1 つの `delta` として流し、2 つ目以降の本文の前に空行を挟みます。`item.started` で `item.type` が `agent_message` 以外のとき（`command_execution` など）は `status` を出します。
+- Codex: `--json` の各行の `type` を見て、`item.completed` かつ `item.type === 'agent_message'` の `text` を流します。`thread.started` の `thread_id` を `cliSessionId` にします。`turn.completed` の `usage` を使います。`cached_input_tokens` は `input_tokens` の内訳なので（V14）、`input_tokens` から引いて `inputTokens`（新規）と `cacheReadTokens` に分け、Claude 側と同じ意味に揃えます。`cache_write_input_tokens` も `input_tokens` に含まれるかは未確認で、これまでの実測ではすべて 0 でした。トークン単位の delta イベントは無いので（V3）、`item.completed` ごとに 1 つの `delta` として流し、2 つ目以降の本文の前に空行を挟みます。`item.started` で `item.type` が `agent_message` 以外のとき（`command_execution` など）は `status` を出します。
 - 両アダプタで共通の spawn・stdin への書き込み・中止時の kill・JSONL の行読みは `chat/bridge/providers/process.mjs` にまとめています。
 - ブラウザ側は `delta` を受けるたびに末尾のメッセージに追記し、`message-scroller.tsx` の自動追従を使います。描画は `requestAnimationFrame` でまとめ、1 フレームに 1 回の setState にします。
 
@@ -591,7 +602,7 @@ R12 の解釈は次のとおりです。ブリッジやシステムプロンプ�
 
 1. Codex アダプタ（`agent_message` 完了単位の表示、`codex exec resume` での継続、転写方式への切り替え）
 2. モバイルの調整（AI とモデルの選択欄を折り返す、Codex の注記を出す）
-3. 使用トークン表示（回答の下に「モデル名 · 入力 58.9k / 出力 1.0k トークン」）。キャンセル時の中途保存はフェーズ 1 の時点で動いていたので、表示を「中止しました（ここまでを保存）」に変えただけです
+3. 使用トークン表示（回答の下に「モデル名 · 入力 新規 36・キャッシュ書込 11.5k・読込 35.0k / 出力 1.0k トークン」。§7.2）。キャンセル時の中途保存はフェーズ 1 の時点で動いていたので、表示を「中止しました（ここまでを保存）」に変えただけです
 
 フェーズ 3（必要になったら）
 

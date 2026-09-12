@@ -218,6 +218,11 @@ test('contexts → threads → messages → events delivers the whole answer', a
   assert.equal(done.event, 'done');
   assert.equal(done.data.status, 'done');
   assert.ok(done.data.usage.outputTokens > 0);
+  // The three input figures stay apart so the dock can show what was actually
+  // processed this turn (§7).
+  assert.equal(done.data.usage.inputTokens, 12);
+  assert.equal(done.data.usage.cacheWriteTokens, 34);
+  assert.ok(done.data.usage.cacheReadTokens > 0);
   const streamed =
     list[0].data.content +
     list
@@ -846,7 +851,10 @@ test('codex answers per completed message and resumes its thread', async () => {
   assert.equal(first.status, 202);
   const { list } = await b.events(first.body.jobId);
   assert.equal(list.at(-1).data.status, 'done');
+  // Codex counts the cached part inside input_tokens; the adapter takes it out
+  // (V14), so inputTokens is the prompt length and cacheReadTokens the rest.
   assert.ok(list.at(-1).data.usage.inputTokens > 0);
+  assert.equal(list.at(-1).data.usage.cacheReadTokens, 100);
   assert.deepEqual(
     list.filter((e) => e.event === 'status').map((e) => e.data.name),
     ['command_execution'],
