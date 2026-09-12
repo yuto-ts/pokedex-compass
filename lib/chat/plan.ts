@@ -11,6 +11,7 @@ import {
   type Route,
   type State,
 } from '@/lib/dex';
+import { groupIds, ranges } from './compact';
 
 const no = (id: number) => `No.${String(id).padStart(4, '0')}`;
 
@@ -38,15 +39,18 @@ export function buildRoutes(s: State): string {
     `固定シンボル優先: ${s.fixed ? 'ON（固定 → ストーリー → NPC → 野生 → 進化 → 通信 → 特殊 → ランダムの順に比較）' : 'OFF（難易度を優先して比較）'}`,
     '',
     '未捕獲のポケモンについて、所持ソフトと DLC の条件を満たす収録済みルートを比較した結果です。★は当サイトの難易度の目安で、1 がやさしい方です。現在の進行状況や実測時間は含みません。',
-    '出現場所や条件の原文は reference/species/<4桁のNo>.md にあります。',
+    '全国図鑑 No. で示します。`25` は 1 種、`25-30` は連番です。名前は `reference/index.md`、出現場所や条件の原文は `reference/species/<4桁のNo>.md` にあります。',
     '',
   ];
   for (const [game, list] of entries) {
     lines.push(`### ${game}（${list.length}匹）`, '');
-    for (const { p, r } of list)
-      lines.push(
-        `- ${no(p.id)} ${p.name}: ${labels[r.method] ?? r.method}（${tags(r)}）`,
-      );
+    // R4: same game, same method and same conditions become one line.
+    const groups = groupIds(
+      list,
+      ({ r }) => `${labels[r.method] ?? r.method}（${tags(r)}）`,
+      ({ p }) => p.id,
+    );
+    for (const [key, ids] of groups) lines.push(`- ${key}: No.${ranges(ids)}`);
     lines.push('');
   }
   if (!entries.length)
@@ -56,7 +60,7 @@ export function buildRoutes(s: State): string {
     '',
     'ルート未収録・所持ソフトで条件を満たさない・過去配布のみ、などの理由で自動計算から除外した未捕獲のポケモンです。入手不可という意味ではありません。',
     '',
-    unresolved.map((p) => `${no(p.id)} ${p.name}`).join('、') || 'なし',
+    unresolved.length ? `No.${ranges(unresolved.map((p) => p.id))}` : 'なし',
     '',
   );
   return lines.join('\n');
@@ -96,7 +100,9 @@ export function buildBank(s: State): string {
     '',
     '当サイトに収録しているルートが Bank 経由の旧作だけのポケモンです。Switch 作品で入手できる場合でも、思い出の個体や過去作のフォルムは別に判断してください。',
     '',
-    bankOnly.length ? bankOnly.map(mark).join('\n') : '該当なし。',
+    bankOnly.length
+      ? `No.${ranges(bankOnly.map((p) => p.id))}（このうち未捕獲は ${bankOnly.filter((p) => !s.progress[p.id]?.caught).length} 匹）`
+      : '該当なし。',
     '',
     '### 補足',
     '',
