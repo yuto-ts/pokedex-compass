@@ -1,0 +1,69 @@
+# mise (https://mise.jdx.dev) の設定。
+# `mise run dev` だけで Node と pnpm の導入、依存の取得、開発サーバーの起動まで行います。
+# タスクの一覧は `mise tasks`。
+
+[tools]
+node = "24"
+pnpm = "12.3.4"
+
+[tasks.install]
+description = "依存パッケージを入れる（package.json / pnpm-lock.yaml が変わったときだけ再実行）"
+run = "pnpm install --frozen-lockfile"
+sources = ["package.json", "pnpm-lock.yaml"]
+outputs = ["node_modules/.modules.yaml"]
+
+[tasks.dev]
+description = "開発サーバーを起動する（http://localhost:3000）"
+depends = ["install"]
+run = "pnpm dev"
+
+[tasks.test]
+description = "図鑑エンジンの確認とチャットブリッジのテスト"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks.typecheck]
+description = "tsc --noEmit"
+depends = ["install"]
+run = "pnpm exec tsc --noEmit"
+
+[tasks.lint]
+description = "oxlint"
+depends = ["install"]
+run = "pnpm lint"
+
+[tasks.format]
+description = "oxfmt"
+depends = ["install"]
+run = "pnpm format"
+
+[tasks.build]
+description = "サイト版をビルドする（dist/）"
+depends = ["install"]
+run = "pnpm build"
+
+[tasks."build:html"]
+description = "単一 HTML 版をビルドする（dist-html/index.html）"
+depends = ["install"]
+run = "pnpm build:html"
+
+[tasks.check]
+description = "変更後の検証 5 つ（test, typecheck, lint, build, build:html）を順に通す"
+depends = ["install"]
+run = [
+  "pnpm test",
+  "pnpm exec tsc --noEmit",
+  "pnpm lint",
+  "pnpm build",
+  "pnpm build:html",
+]
+
+[tasks.chat]
+description = "ポケモン相談チャットのブリッジを起動する（要 claude / codex CLI）"
+depends = ["install"]
+run = "pnpm chat"
+
+[tasks.deploy]
+description = "ビルドして Cloudflare Workers にデプロイする"
+depends = ["install"]
+run = "pnpm run deploy"
