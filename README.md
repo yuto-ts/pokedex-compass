@@ -1,125 +1,95 @@
 # DEX COMPASS
 
-全国図鑑1,025種を対象にした、Pokémon HOME収集支援ツール。
+全国図鑑 1,025 種を対象にした、Pokémon HOME の収集支援ツールです。
+
+## できること
+
+- 全 1,025 種を日本語・ひらがな・英語・図鑑番号で検索し、タイプ・世代・分類・収集状況・入手条件・難易度で絞り込む
+- 捕獲・HOME 送信・図鑑登録・Living Dex・フォルムを別々に記録する
+- 所持ソフトと DLC に応じた作品別の入手ルート、おすすめ比較、作品ごとの攻略チェックリスト
+- 不足数と世代・分類別の残り、Bank 終了対策、大切な旧作個体の印
+- カード／表表示、スマートフォン対応、サーバー不要の単一 HTML 版
 
 ## 開発
 
-パッケージマネージャーは **pnpm 12.3.4**。`corepack pnpm install`、`corepack pnpm dev`で起動。
-`corepack pnpm test`、`corepack pnpm exec tsc --noEmit`、`corepack pnpm lint`、`corepack pnpm build`、`corepack pnpm build:html`で検証。`test`は図鑑エンジンの確認に加えて、チャットブリッジのテスト（`chat/bridge/*.test.mjs`、偽CLI `scripts/fake-claude.mjs`を使用）を実行します。
+pnpm 12.3.4 を corepack 経由で使います。
 
-React / TypeScript / Tailwind CSS / shadcn/ui。Sites標準のVinextを利用し、Next.js App Router互換APIで実装しています。Next.jsそのものの実行環境ではありません。
+```bash
+corepack pnpm install
+```
 
-## 単一HTML版
+```bash
+corepack pnpm dev
+```
 
-`corepack pnpm build:html`で`dist-html/index.html`を生成します。画面・CSS・JavaScript・図鑑データを1ファイルに内蔵し、サーバーなしでブラウザから直接開けます。
+検証は次の 5 つをすべて通します。`test` は図鑑エンジンの確認（`scripts/check-engine.mjs`）と、偽 CLI（`scripts/fake-claude.mjs`、`scripts/fake-codex.mjs`）を使ったチャットブリッジのテスト（`chat/bridge/*.test.mjs`）です。
 
-- `standalone/main.tsx`がエントリー。ページ移動はURLの`#/routes`・`#/pokemon/25`のようなハッシュで処理します。
-- `next/link`・`next/image`は`standalone/`のシムに、`@/lib/href`は`standalone/href.ts`に差し替えてビルドします（`scripts/build-html.mjs`）。
-- 保存先は開いたブラウザのlocalStorageで、公開サイトとは別です。チェック状態は自動移行されません。
-- `file://`での保存挙動はブラウザに依存します。HTMLの移動・別ブラウザでの利用・閲覧データ削除で以前の記録が見えなくなる場合があります。
-- ポケモン画像はPokeAPIの画像リポジトリから取得するため、表示にはインターネット接続が必要です。
+```bash
+corepack pnpm test && corepack pnpm exec tsc --noEmit && corepack pnpm lint && corepack pnpm build && corepack pnpm build:html
+```
 
-## 機能
+React / TypeScript / Tailwind CSS / shadcn/ui で、Sites 標準の Vinext 上に Next.js App Router 互換 API で実装しています。Next.js 本体の実行環境ではありません。
 
-- 全1,025種の全国図鑑・日本語／ひらがな／英語／図鑑番号検索
-- タイプ・世代・分類・収集状況・入手条件・難易度フィルター
-- 捕獲・HOME送信・登録・Living Dex・フォルムの独立した永続管理
-- 本編とバージョン別DLC設定、固定シンボル優先設定
-- 根拠付きの作品別入手ルートとおすすめ比較
-- 不足数、世代・分類別の残り、作品ごとの攻略チェックリスト
-- Bank対策、個体ごとの大切な旧作個体フラグ
-- 詳細URL、カード／表表示、スマートフォン対応
+## 単一 HTML 版
+
+`corepack pnpm build:html` が `dist-html/index.html` を生成します。画面・CSS・JavaScript・図鑑データを 1 ファイルに内蔵し、サーバーなしで開けます。エントリーは `standalone/main.tsx` で、ページ移動は `#/routes` や `#/pokemon/25` のようなハッシュです。`next/link`・`next/image` は `standalone/` のシム、`@/lib/href` は `standalone/href.ts` に差し替えてビルドします（`scripts/build-html.mjs`）。
+
+記録は開いたブラウザの localStorage（キー `dex-compass-v1`）に入り、サイト版とは別で自動移行もされません。`file://` での保存はブラウザ依存で、HTML の移動・別ブラウザでの利用・閲覧データの削除で以前の記録が見えなくなることがあります。ポケモン画像は PokeAPI から取得するので、表示にはインターネット接続が要ります。
 
 ## データの範囲と限界
 
-基本情報・フォルム・進化条件：PokeAPI公開CSV。`data/pokemon.json`、`data/evolution.json`。
-旧作の通常草むら出現：PokeAPIのencounters。個別の時間帯等は出典を参照。
-Switch作品の入手場所：Serebii各種ページのLocations表。`data/modern-routes.json`。自動取得は固定出現を推測せず、取得条件の原文とリンクを保持します。地名・条件の一部は英語です。
-手動で確認したルート：`lib/dex.ts`。出典とDLC・通信・移送条件を明記。
-確認日：2026-09-08。取得失敗や未対応ページは`data/import-report.json`に記録。
+| 内容 | 出典 | 場所 |
+| --- | --- | --- |
+| 基本情報・フォルム・進化条件 | PokeAPI の公開 CSV | `data/pokemon.json`、`data/evolution.json` |
+| 旧作の通常草むら出現 | PokeAPI の encounters | `data/routes.json`（時間帯などの細部は出典を参照） |
+| Switch 作品の入手場所 | Serebii 各ページの Locations 表 | `data/modern-routes.json`（固定出現を推測せず、条件の原文とリンクを保持。地名・条件の一部は英語） |
+| 手動で確認したルート | 各ルートの `source` | `lib/dex.ts`（出典と DLC・通信・移送条件を明記） |
 
-**全作品の全入手方法の検証済みデータベースではありません。** 未収録のものを入手不可とは扱わない設計です。フォルム一覧も、HOMEに保管できる全バリエーションを網羅しているとは限りません。
-進化CSVの条件は作品・フォルム単位で差があり、特殊な判定を網羅できない場合は出典確認が必要です。
-幻の自動取得ルートは追加条件を手動照合し、おすすめから除外できる`needsReview`を用意します。
-★評価は目安です。最短攻略は収録済みルートの優先順位比較と作品別グルーピングであり、現在のストーリー進行・確率・実測時間を含む厳密最適化ではありません。
-過去配布は現在開催中のイベントとしておすすめしません。GOのイベント開催は都度公式発表を確認。
-準伝説は便宜的分類です。
+確認日は 2026-09-08 で、取得失敗と未対応ページは `data/import-report.json` に記録しています。
 
-## 保存と移行
+全作品の全入手方法を検証したデータベースではなく、未収録のものを入手不可とは扱いません。フォルム一覧と進化条件も網羅ではないので、特殊な判定は出典で確認してください。★評価は目安で、最短攻略は収録済みルートの優先順位比較と作品別のまとめであり、ストーリー進行・確率・実測時間を含む最適化ではありません。過去の配布は現在のおすすめに出さず、幻の自動取得ルートは `needsReview` でおすすめから外せます。準伝説は便宜的な分類です。
 
-状態モデル（State/Progress）と検証は`lib/state.ts`、保存のI/Oは`lib/storage.ts`が担当します。schema version 1。
+## 保存
 
-- サイト版：`/api/state`（`app/api/state/route.ts`）経由でCloudflare D1の`state`テーブルに1行で保存します。テーブルは初回アクセス時に作成します。
-- 保存のたびにrevisionを照合し、他の端末で先に更新されていれば409を返して上書きしません。画面には再読み込みを促すメッセージを出します。
-- 単一HTML版：`standalone/storage.ts`がlocalStorage（キー`dex-compass-v1`）に保存します。
-
-破損データは上書きせずエラーを表示。保存不能を成功として扱いません。
+状態モデルと検証は `lib/state.ts`、保存の I/O は `lib/storage.ts` が担当します（schema version 1）。サイト版の保存先は `/api/state`（`app/api/state/route.ts`）経由の Cloudflare D1 で、`state` テーブル 1 行に書き、テーブルは初回アクセス時に作られます。保存のたびに revision を照合するので、他の端末が先に更新していれば 409 で上書きを止め、画面は再読み込みを促す表示に変わります。単一 HTML 版の保存先は `standalone/storage.ts` が扱う localStorage で、破損データは上書きせずエラー表示です。
 
 ## ポケモン相談チャット（右サイドバー）
 
-全ページの右端にチャット欄があり、この Mac で動く `claude` CLI（Claude のサブスクリプション）か `codex` CLI（ChatGPT のサブスクリプション）に質問できます。API キーは使いません。設計は`docs/chat-sidebar.md`にまとめています。
+右端のチャット欄から、この Mac で動く `claude` CLI（Claude のサブスクリプション）か `codex` CLI（ChatGPT のサブスクリプション）に質問できます。API キーは使いません。設計と細かい挙動は [docs/chat-sidebar.md](docs/chat-sidebar.md) にあります。
 
-起動手順:
+1. 使う CLI にログインしておきます（`claude -p "hi"` が返れば可。ChatGPT 側なら `codex` も）。
+2. `corepack pnpm chat` を実行します。ブリッジが `http://127.0.0.1:47117` で待ち受け、接続トークンを表示します（`chat/workspace/.token` にも保存）。
+3. サイト右端の「チャット」を開き、トークンを 1 回入力します。トークンはそのブラウザの localStorage に残ります。
+4. https のサイト版では、初回接続時に Chrome の「ローカル ネットワークへのアクセス」ダイアログが出るので「許可」を押します。
 
-1. 使う CLI にログイン済みであることを確認する（`claude -p "hi"` が応答すれば可。ChatGPT 側を使うなら `codex` も）。
-2. リポジトリで `corepack pnpm chat` を実行します。ブリッジが `http://127.0.0.1:47117` で待ち受け、接続トークンを表示します（`chat/workspace/.token` にも保存）。
-3. サイト右端の「チャット」を開き、接続トークンを1回だけ入力します。トークンはそのブラウザのlocalStorageに保存されます。
-4. https のサイト版では、最初の接続時にChromeの「ローカル ネットワークへのアクセス」ダイアログが出るので「許可」を押します。
+主なファイルは、システムプロンプト `chat/prompts/system.md`、skill `chat/skills/`（ユーザーの記録とサイトのデータの調べ方）、設定 `chat/config.json`（ポート・許可 Origin・モデル一覧）です。プロンプトと skill の変更は次の質問から反映されます。サイト版のドメインは `allowedOrigins` に足し、単一 HTML 版（`file://`）から使うときは `allowNullOrigin` を `true` にします。AI が読むのは、ブラウザが送った収集状況・おすすめルート・Bank 対策（`chat/workspace/contexts/`）と、起動時に生成する作品別の入手方法・進化条件・サイト説明（`chat/workspace/reference/`、約 4 MB）です。
 
-- システムプロンプトは`chat/prompts/system.md`、skillは`chat/skills/dex-compass-collection/`（ユーザーの記録）と`chat/skills/dex-compass-guide/`（入手方法・ルート・Bank・サイト説明）です。編集は次の質問から反映され、再起動は不要です。
-- 回答の書き方は`chat/prompts/system.md`の「読み手の前提」で調整します。既定では、シリーズの基本を知っている読み手向けに、基本の説明を省いて手順と注意点から書くよう指示しています。
-- AIが読めるのは、収集状況（`data/collection.md`）に加えて、おすすめ攻略ルート（`data/routes.md`）、Bank終了対策（`data/bank.md`）、作品別の入手方法・進化条件（`reference/species/<4桁のNo>.md`）、サイトの説明（`reference/site.md`）です。`reference/`は`corepack pnpm chat`が起動前に`scripts/build-chat-reference.mjs`で生成します（元データが変わったときだけ作り直し、約4MB）。
-- ポート・許可Origin・モデル一覧は`chat/config.json`にあります。サイト版のドメインは`allowedOrigins`に追加してください。単一HTML版（`file://`）から使う場合は`allowNullOrigin`を`true`にします。
-- 収集状況はブラウザがブリッジへ送った版（`chat/workspace/contexts/`）をAIがskillで読みます。チェック直後の質問は、送信前に最新の状態を同期してから送ります。
-
-同じMac以外（iPhoneなど）から使う場合:
-
-ブリッジは既定で`127.0.0.1`だけを待ち受けます。同じtailnet（Tailscale）のiPhoneなどから使うときは、待ち受けアドレスと許可Originを足して起動します。
+iPhone など同じ tailnet（Tailscale）の端末から使うときは、待ち受けアドレスと許可 Origin を足してブリッジを起動し、開発サーバーも同じアドレスで待ち受けます。端末のブラウザで `http://<tailscale の IP>:3000/` を開いて同じトークンを入れれば使えます。MagicDNS の名前ではなく IP で開いてください（Vite のホスト検査）。
 
 ```bash
 CHAT_BRIDGE_HOSTS=$(tailscale ip -4) CHAT_ALLOWED_ORIGINS=http://$(tailscale ip -4):3000 corepack pnpm chat
 ```
 
-開発サーバーもそのアドレスで待ち受けさせます（`corepack pnpm dev -- -H $(tailscale ip -4)`）。あとは端末のブラウザで`http://<tailscaleのIP>:3000/`を開き、同じ接続トークンを1回入力すれば使えます。ドックはページのホストからブリッジの接続先を決めるので、設定は不要です。
-
-- 追加したアドレスの範囲（tailnet内のあなたの端末）からブリッジAPIに到達できるようになります。守りはトークン・Origin許可リスト・Host検査の3つです。
-- `0.0.0.0`では待ち受けないので、足していないネットワーク（公衆Wi-Fiなど）からは届きません。
-- 個人のアドレスをgitに入れずに済むよう、環境変数で渡す形にしています。恒久的に設定する場合は`chat/config.json`の`extraBindHosts`と`allowedOrigins`に書けます。
-- Viteのホスト検査があるため、MagicDNSの名前ではなくIPで開いてください。名前で開くには`vite.config.ts`に`server.allowedHosts`が要ります。
+```bash
+corepack pnpm dev -- -H $(tailscale ip -4)
+```
 
 制約:
 
-- ブリッジはこのMacで動きます。Cloudflare上のサイト版でも、チャットはブラウザと同じMac（またはtailnet越しの同じMac）のブリッジに接続します。
-- 履歴は`chat/workspace/history/`（Macごと）に保存され、別のMacとは共有されません。`chat/workspace/`はgit管理外です。
-- 対応ブラウザはChromeです。Safariは確認していません。
-- ChatGPTを選ぶと`codex exec`に中継します。Codexはトークン単位の逐次表示ができないため、回答は段落単位で出ます。読み取り専用のサンドボックスでシェルを実行するので、書き込みと外部通信は止まりますが、この Mac のファイルは作業フォルダの外も読めます（ドックのAI選択欄にも注記しています）。
-- 回答の下にモデル名と使用トークン（入力・出力）が出ます。生成を停止した場合、そこまでの本文は保存されます。
-- 同時に回答を生成できるのは1件です。1回の回答は180秒で打ち切ります。
-- 質問ごとに`claude -p`を新しい作業ディレクトリで起動するため、`~/.claude/projects/`にジョブごとのセッションディレクトリが増えます。
+- ブリッジはこの Mac で動きます。Cloudflare 上のサイト版でも、ブラウザと同じ Mac（または tailnet 越しの同じ Mac）のブリッジにつなぎます。`0.0.0.0` では待ち受けず、守りはトークン・Origin 許可リスト・Host 検査の 3 つです。
+- 履歴は `chat/workspace/history/` に Mac ごとに残り、`chat/workspace/` は git 管理外です。
+- 対応ブラウザは Chrome です。同時に生成できる回答は 1 件で、1 回の回答は 180 秒で打ち切ります。
+- Codex は段落単位の表示になり、読み取り専用サンドボックスのため作業フォルダの外のファイルも読めます。
+- 質問ごとに `claude -p` を新しい作業ディレクトリで起動するため、`~/.claude/projects/` にジョブごとのディレクトリが増えます。
 
-手動確認チェックリスト（`ChatDock`は自動テストがありません）:
+## Cloudflare へのデプロイ
 
-- [ ] 開閉・幅のドラッグ（320〜640px）が、ページを移動しても保たれる
-- [ ] 生成中に左ナビで別ページへ移動しても、本文が欠けず二重にもならずに続きから表示される
-- [ ] 入力途中の文がページ移動後も残る
-- [ ] 捕獲チェックを付けた直後の質問に、新しい収集状況で答える
-- [ ] サイト版と単一HTML版を同時に開いても、互いの収集状況を上書きしない（保存元が別の版になる）
-- [ ] 履歴から再開・削除（確認ダイアログあり）ができる
-- [ ] ブリッジ停止中は起動コマンドとトークン入力の案内が出ます。生成中にブリッジが止まった回答は「ブリッジが停止したため中断しました」になる
-- [ ] 640px以下では下からのシートで開く
-
-## Cloudflareへのデプロイ
-
-`corepack pnpm run deploy`でビルドし、Worker `pokedex-compass`としてデプロイします。D1の接続先は`vite.config.ts`の`d1_databases`で指定します。
-
-アクセス制限：Cloudflare Access。APIはAccessが付与するJWT（`Cf-Access-Jwt-Assertion`）を`jose`で検証します。`vite.config.ts`の`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD`が未設定なら、APIはすべて403。
-ローカルの`corepack pnpm dev`では検証を省略し、D1はMiniflareのローカルDBを使用。
+`corepack pnpm run deploy` でビルドし、Worker `pokedex-compass` としてデプロイします。D1 の接続先は `vite.config.ts` の `d1_databases` です。アクセス制限は Cloudflare Access で、API は Access が付与する JWT（`Cf-Access-Jwt-Assertion`）を `jose` で検証し、`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` が未設定ならすべて 403 を返します。ローカルの `corepack pnpm dev` では検証を省き、D1 は Miniflare のローカル DB です。
 
 ## 出典と権利
 
-- https://github.com/PokeAPI/pokeapi/tree/master/data/v2/csv
-- https://github.com/PokeAPI/sprites
-- 入手情報の詳細出典は各ルートのsource
-- Bank終了告知：https://www.pokemon.co.jp/info/2022/02/220216_gm01.html?rss=260813
+- PokeAPI: https://github.com/PokeAPI/pokeapi/tree/master/data/v2/csv 、画像は https://github.com/PokeAPI/sprites
+- 入手情報の詳細出典は各ルートの `source`
+- Bank 終了告知: https://www.pokemon.co.jp/info/2022/02/220216_gm01.html?rss=260813
 
-非公式ファンメイドツール。Pokémon © Nintendo / Creatures / GAME FREAK。
+非公式のファンメイドツールです。Pokémon © Nintendo / Creatures / GAME FREAK。
