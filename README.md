@@ -16,23 +16,27 @@ Pokémon HOME で全国図鑑 1,025 種を集める人のための、非公式�
 | --- | --- | --- |
 | サイト版（Cloudflare Workers + D1、Cloudflare Access で保護） | サーバー。複数の端末で同じ記録 | 自分でデプロイして日常的に使う |
 | 単一 HTML 版（`dist-html/index.html`） | 開いたブラウザの localStorage | ファイル 1 つで手軽に試す |
-| ローカル（`corepack pnpm dev`） | Miniflare のローカル DB | 開発 |
+| ローカル（`mise run dev`） | Miniflare のローカル DB | 開発 |
 
 手順は [docs/operations.md](docs/operations.md) にあります。
 
 ## 開発
 
-```bash
-corepack pnpm install
-```
+[mise](https://mise.jdx.dev) を入れておけば、次の 1 コマンドで Node 24 と pnpm 12.3.4 の導入、依存の取得、開発サーバーの起動まで行います（初回は設定ファイルを信頼するか聞かれるので `y`）。
 
 ```bash
-corepack pnpm dev
+mise run dev
 ```
 
-変更後は `corepack pnpm test`、`corepack pnpm exec tsc --noEmit`、`corepack pnpm lint`、`corepack pnpm build`、`corepack pnpm build:html` を通します。
+変更後は次で 5 つの検証（test, typecheck, lint, build, build:html）を順に通します。タスクの一覧は `mise tasks` で見られます。
 
-React / TypeScript / Tailwind CSS / shadcn/ui で書き、Vinext（Next.js App Router 互換）で動かしています。Next.js 本体は使いません。パッケージマネージャーは pnpm 12.3.4（corepack 経由）です。
+```bash
+mise run check
+```
+
+mise を使わない場合は `corepack pnpm install` のあと `corepack pnpm dev` で同じです。
+
+React / TypeScript / Tailwind CSS / shadcn/ui で書き、Vinext（Next.js App Router 互換）で動かしています。Next.js 本体は使いません。パッケージマネージャーは pnpm 12.3.4 です。
 
 ## リポジトリの構成
 

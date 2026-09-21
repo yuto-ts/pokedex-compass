@@ -4,7 +4,13 @@
 
 ## ローカルで動かす
 
-pnpm 12.3.4 を corepack 経由で使います。
+Node 24 と pnpm 12.3.4 を使います。[mise](https://mise.jdx.dev) が入っていれば、`mise.toml` の定義に従って両方を自動で入れ、依存の取得（`package.json` か `pnpm-lock.yaml` が変わったときだけ再実行）まで済ませてから開発サーバーを起動します。初回は設定ファイルを信頼するか聞かれるので `y` と答えます。
+
+```bash
+mise run dev
+```
+
+mise を使わない場合は corepack 経由で同じことをします。
 
 ```bash
 corepack pnpm install
@@ -19,18 +25,24 @@ corepack pnpm dev
 変更後の検証は次の 5 つをすべて通します。`test` は図鑑エンジンの確認（`scripts/check-engine.mjs`）と、偽 CLI（`scripts/fake-claude.mjs`、`scripts/fake-codex.mjs`）を使ったチャットブリッジのテスト（`chat/bridge/*.test.mjs`）です。
 
 ```bash
+mise run check
+```
+
+個別に走らせるタスクは `mise tasks` に一覧があり、`mise run test` のように呼びます（`typecheck`、`lint`、`format`、`build`、`build:html`、`chat`、`deploy`）。mise なしなら次と同じです。
+
+```bash
 corepack pnpm test && corepack pnpm exec tsc --noEmit && corepack pnpm lint && corepack pnpm build && corepack pnpm build:html
 ```
 
 ## 単一 HTML 版
 
-`corepack pnpm build:html` が `dist-html/index.html` を生成します。画面・CSS・JavaScript・図鑑データを 1 ファイルに内蔵し、サーバーなしで開けます。エントリーは `standalone/main.tsx` で、ページ移動は `#/routes` や `#/pokemon/25` のようなハッシュです。`next/link`・`next/image` は `standalone/` のシム、`@/lib/href` は `standalone/href.ts` に差し替えてビルドします（`scripts/build-html.mjs`）。
+`mise run build:html`（または `corepack pnpm build:html`）が `dist-html/index.html` を生成します。画面・CSS・JavaScript・図鑑データを 1 ファイルに内蔵し、サーバーなしで開けます。エントリーは `standalone/main.tsx` で、ページ移動は `#/routes` や `#/pokemon/25` のようなハッシュです。`next/link`・`next/image` は `standalone/` のシム、`@/lib/href` は `standalone/href.ts` に差し替えてビルドします（`scripts/build-html.mjs`）。
 
 記録は開いたブラウザの localStorage（キー `dex-compass-v1`）に入り、サイト版とは別で自動移行もされません。`file://` での保存はブラウザ依存で、HTML の移動・別ブラウザでの利用・閲覧データの削除で以前の記録が見えなくなることがあります。ポケモン画像は PokeAPI から取得するので、表示にはインターネット接続が要ります。
 
 ## サイト版を Cloudflare にデプロイする
 
-`corepack pnpm run deploy` でビルドし、Worker `pokedex-compass` としてデプロイします。D1 の接続先は `vite.config.ts` の `d1_databases` です。アクセス制限は Cloudflare Access で、API は Access が付与する JWT（`Cf-Access-Jwt-Assertion`）を `jose` で検証し、`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` が未設定ならすべて 403 を返します。
+`mise run deploy`（または `corepack pnpm run deploy`）でビルドし、Worker `pokedex-compass` としてデプロイします。D1 の接続先は `vite.config.ts` の `d1_databases` です。アクセス制限は Cloudflare Access で、API は Access が付与する JWT（`Cf-Access-Jwt-Assertion`）を `jose` で検証し、`ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` が未設定ならすべて 403 を返します。
 
 ## 保存の仕組み
 
@@ -41,7 +53,7 @@ corepack pnpm test && corepack pnpm exec tsc --noEmit && corepack pnpm lint && c
 右端のチャット欄から、この Mac で動く `claude` CLI（Claude のサブスクリプション）か `codex` CLI（ChatGPT のサブスクリプション）に質問できます。API キーは使いません。
 
 1. 使う CLI にログインしておきます（`claude -p "hi"` が返れば可。ChatGPT 側なら `codex` も）。
-2. `corepack pnpm chat` を実行します。ブリッジが `http://127.0.0.1:47117` で待ち受け、接続トークンを表示します（`chat/workspace/.token` にも保存）。
+2. `mise run chat`（または `corepack pnpm chat`）を実行します。ブリッジが `http://127.0.0.1:47117` で待ち受け、接続トークンを表示します（`chat/workspace/.token` にも保存）。
 3. サイト右端の「チャット」を開き、トークンを 1 回入力します。トークンはそのブラウザの localStorage に残ります。
 4. https のサイト版では、初回接続時に Chrome の「ローカル ネットワークへのアクセス」ダイアログが出るので「許可」を押します。
 
@@ -59,11 +71,11 @@ corepack pnpm test && corepack pnpm exec tsc --noEmit && corepack pnpm lint && c
 待ち受けアドレスと許可 Origin を足してブリッジを起動し、開発サーバーも同じアドレスで待ち受けます。端末のブラウザで `http://<tailscale の IP>:3000/` を開いて同じトークンを入れれば使えます。MagicDNS の名前ではなく IP で開いてください（Vite のホスト検査）。
 
 ```bash
-CHAT_BRIDGE_HOSTS=$(tailscale ip -4) CHAT_ALLOWED_ORIGINS=http://$(tailscale ip -4):3000 corepack pnpm chat
+CHAT_BRIDGE_HOSTS=$(tailscale ip -4) CHAT_ALLOWED_ORIGINS=http://$(tailscale ip -4):3000 mise run chat
 ```
 
 ```bash
-corepack pnpm dev -- -H $(tailscale ip -4)
+mise run dev -- -H $(tailscale ip -4)
 ```
 
 恒久的に設定するなら `chat/config.json` の `extraBindHosts` と `allowedOrigins` に書けます。`0.0.0.0` では待ち受けず、守りはトークン・Origin 許可リスト・Host 検査の 3 つです。

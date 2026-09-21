@@ -40,3 +40,7 @@ next-env.d.ts
 
 # chat bridge (snapshots, per-job cwd, history, token)
 /chat/workspace/
+
+# mise
+mise.local.toml
+.mise.local.toml
